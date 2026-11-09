@@ -17,6 +17,8 @@ export default function SecondaryScreen({ tab, isArabic, onBackHome }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [registrationNotice, setRegistrationNotice] = useState("");
+  const [exploreQuery, setExploreQuery] = useState("");
+  const [joinedCommunities, setJoinedCommunities] = useState<string[]>([]);
   const title = tab === "explore" ? (ar ? "استكشف المجتمع" : "Explore the community")
     : tab === "groups" ? (ar ? "المجتمعات التقنية" : "Technical communities")
     : tab === "messages" ? (ar ? "الرسائل" : "Messages")
@@ -40,14 +42,14 @@ export default function SecondaryScreen({ tab, isArabic, onBackHome }: Props) {
       <Text style={[s.eyebrow, ar && s.rtl]}>{ar ? "مساحتك التقنية" : "YOUR TECH SPACE"}</Text>
       <Text style={[s.title, ar && s.rtl]}>{title}</Text>
       {tab === "explore" && <>
-        <View style={s.search}><MaterialCommunityIcons name="magnify" size={20} color={palette.muted}/><TextInput placeholder={ar ? "ابحث عن أشخاص أو مشاريع أو مواضيع" : "Search people, projects or topics"} placeholderTextColor="#7188A2" style={[s.searchInput, ar && s.rtl]}/></View>
+        <View style={s.search}><MaterialCommunityIcons name="magnify" size={20} color={palette.muted}/><TextInput value={exploreQuery} onChangeText={setExploreQuery} placeholder={ar ? "ابحث عن تخصص..." : "Search specialties..."} placeholderTextColor="#7188A2" style={[s.searchInput, ar && s.rtl]}/></View>
         {suggestions.map((x, i) => <View key={i} style={s.rowCard}><View style={s.icon}><MaterialCommunityIcons name={x.icon} size={22} color={palette.cyan}/></View><View style={s.flex}><Text style={[s.cardTitle, ar && s.rtl]}>{x.name}</Text><Text style={[s.detail, ar && s.rtl]}>{x.detail}</Text></View><MaterialCommunityIcons name="chevron-right" size={21} color={palette.muted}/></View>)}
         <Text style={[s.section, ar && s.rtl]}>{ar ? "تخصصات شائعة" : "Popular specialties"}</Text>
-        <View style={s.tags}>{communities.map(x => <View key={x.name} style={s.tag}><Text style={s.tagText}>{x.name}</Text></View>)}</View>
+        <View style={s.tags}>{communities.filter(x => x.name.toLowerCase().includes(exploreQuery.trim().toLowerCase()) || x.detail.toLowerCase().includes(exploreQuery.trim().toLowerCase())).map(x => <View key={x.name} style={s.tag}><Text style={s.tagText}>{x.name}</Text></View>)}</View>
       </>}
       {tab === "groups" && <>
         <Text style={[s.intro, ar && s.rtl]}>{ar ? "انضم إلى مجتمعات حسب تخصصك وشارك المعرفة والمشاريع." : "Join communities by specialty and share knowledge and projects."}</Text>
-        {communities.map(x => <View key={x.name} style={s.communityCard}><View style={s.row}><View style={s.icon}><MaterialCommunityIcons name={x.icon} size={23} color={palette.cyan}/></View><View style={s.flex}><Text style={[s.cardTitle, ar && s.rtl]}>{x.name}</Text><Text style={[s.detail, ar && s.rtl]}>{x.detail}</Text></View></View><View style={s.communityFoot}><Text style={s.detail}>{x.members} {ar ? "عضو" : "members"}</Text><Pressable style={s.join}><Text style={s.joinText}>{ar ? "استكشاف" : "Explore"}</Text></Pressable></View></View>)}
+        {communities.map(x => { const joined = joinedCommunities.includes(x.name); return <View key={x.name} style={s.communityCard}><View style={s.row}><View style={s.icon}><MaterialCommunityIcons name={x.icon} size={23} color={palette.cyan}/></View><View style={s.flex}><Text style={[s.cardTitle, ar && s.rtl]}>{x.name}</Text><Text style={[s.detail, ar && s.rtl]}>{x.detail}</Text></View></View><View style={s.communityFoot}><Text style={s.detail}>{x.members} {ar ? "عضو" : "members"}</Text><Pressable onPress={() => setJoinedCommunities(old => joined ? old.filter(name => name !== x.name) : [...old, x.name])} style={[s.join, joined && s.joined]}><Text style={[s.joinText, joined && s.joinedText]}>{joined ? (ar ? "تم الانضمام" : "Joined") : (ar ? "انضمام" : "Join")}</Text></Pressable></View></View>; })}
       </>}
       {tab === "messages" && <>
         <View style={s.notice}><MaterialCommunityIcons name="lock-outline" size={21} color={palette.cyan}/><Text style={[s.noticeText, ar && s.rtl]}>{ar ? "ستظهر محادثاتك هنا بعد تفعيل الحسابات والرسائل الخاصة." : "Your conversations will appear here when accounts and direct messaging are connected."}</Text></View>
@@ -79,7 +81,7 @@ export default function SecondaryScreen({ tab, isArabic, onBackHome }: Props) {
             <TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="name@example.com" placeholderTextColor="#7188A2" style={s.fieldInput}/>
             <Text style={[s.fieldLabel, ar && s.rtl]}>{ar ? "كلمة المرور" : "PASSWORD"}</Text>
             <TextInput value={password} onChangeText={setPassword} secureTextEntry placeholder={ar ? "8 أحرف على الأقل" : "At least 8 characters"} placeholderTextColor="#7188A2" style={s.fieldInput}/>
-            <Pressable style={s.submit} onPress={() => setRegistrationNotice(ar ? "هذه معاينة للواجهة فقط. إنشاء الحساب وتسجيل Google سيتفعّلان بعد ربط الخادم." : "This is a UI preview. Account creation and Google sign-in will be enabled after backend integration.")}>
+            <Pressable style={s.submit} onPress={() => setRegistrationNotice(!fullName.trim() || !email.trim() || password.length < 8 ? (ar ? "أكمل الاسم والبريد الإلكتروني، واجعل كلمة المرور 8 أحرف على الأقل." : "Enter your name and email, and use a password of at least 8 characters.") : (ar ? "اكتملت مراجعة الحقول. إنشاء الحساب الفعلي سيتفعّل بعد ربط الخادم." : "The fields look complete. Actual account creation will be enabled after backend integration."))}>
               <Text style={s.submitText}>{ar ? "متابعة" : "Continue"}</Text>
               <MaterialCommunityIcons name="arrow-right" size={17} color="#071426"/>
             </Pressable>
@@ -115,6 +117,8 @@ const s = StyleSheet.create({
   communityFoot:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:palette.border},
   join:{backgroundColor:"#69C9F3",paddingHorizontal:14,paddingVertical:8,borderRadius:10},
   joinText:{color:"#071426",fontSize:10,fontWeight:"900"},
+  joined:{backgroundColor:"#15334B",borderWidth:1,borderColor:"#39718F"},
+  joinedText:{color:"#A5E5FF"},
   notice:{flexDirection:"row",alignItems:"center",gap:10,backgroundColor:"#102943",borderWidth:1,borderColor:"#28516D",borderRadius:14,padding:13},
   noticeText:{color:"#B6D0E3",fontSize:11,lineHeight:19,flex:1},
   empty:{alignItems:"center",paddingVertical:55,gap:8},
