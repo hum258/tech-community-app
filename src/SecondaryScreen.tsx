@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { supabase } from "./lib/supabase";
 
 type Props = { tab: string; isArabic: boolean; onBackHome: () => void };
-type Profile = { id:string; account_type:"personal"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null };
+type Profile = { id:string; account_type:"personal"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null; avatar_url:string|null; is_verified:boolean };
 type Community = { id:string; name:string; description:string; specialty:string };
 type Conversation = { id:string; created_at:string; peerName:string; peerUsername:string };
 
@@ -25,9 +26,9 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
   const [bio,setBio]=useState("");
   const [specialty,setSpecialty]=useState("");
   const [privateAccount,setPrivateAccount]=useState(false);
-  const [requestReason,setRequestReason]=useState("");
-  const [evidenceUrl,setEvidenceUrl]=useState("");
-  const [requestStatus,setRequestStatus]=useState("");
+  const [postCount,setPostCount]=useState(0);
+  const [followersCount,setFollowersCount]=useState(0);
+  const [followingCount,setFollowingCount]=useState(0);
   const [conversations,setConversations]=useState<Conversation[]>([]);
   const [targetUsername,setTargetUsername]=useState("");
   const [activeConversation,setActiveConversation]=useState<string|null>(null);
@@ -40,10 +41,14 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     const {data:{user}}=await supabase.auth.getUser();
     if(!user)return;
     setUserId(user.id);
-    const {data}=await supabase.from("profiles").select("id,account_type,display_name,username,bio,specialty,is_private,interests,company_name,company_website,company_industry,verification_status,verified_at").eq("id",user.id).maybeSingle();
+    const {data}=await supabase.from("profiles").select("id,account_type,display_name,username,bio,specialty,is_private,interests,company_name,company_website,company_industry,verification_status,verified_at,avatar_url,is_verified").eq("id",user.id).maybeSingle();
     if(data){const p=data as Profile;setProfile(p);setDisplayName(p.display_name||"");setUsername(p.username||"");setBio(p.bio||"");setSpecialty(p.specialty||"");setPrivateAccount(!!p.is_private);}
-    const {data:req}=await supabase.from("verification_requests").select("status,reviewer_note").eq("user_id",user.id).order("created_at",{ascending:false}).limit(1).maybeSingle();
-    if(req)setRequestStatus(req.status+(req.reviewer_note?" — "+req.reviewer_note:""));
+    const [posts,followers,following]=await Promise.all([
+      supabase.from("posts").select("id",{count:"exact",head:true}).eq("author_id",user.id),
+      supabase.from("profile_follows").select("follower_id",{count:"exact",head:true}).eq("following_id",user.id),
+      supabase.from("profile_follows").select("following_id",{count:"exact",head:true}).eq("follower_id",user.id)
+    ]);
+    setPostCount(posts.count||0);setFollowersCount(followers.count||0);setFollowingCount(following.count||0);
   },[]);
 
   const loadGroups=useCallback(async()=>{
@@ -86,15 +91,35 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     setJoined(old=>isJoined?old.filter(x=>x!==id):[...old,id]);
   };
 
-  const submitVerification=async()=>{
+  const toggleVerified=async()=>{
     if(!supabase||!userId||!profile)return;
-    if(requestReason.trim().length<20){showNotice(ar?"اكتب سبباً واضحاً لا يقل عن 20 حرفاً.":"Please provide a reason of at least 20 characters.");return;}
-    if(profile.verification_status==="approved"){showNotice(ar?"حسابك موثّق بالفعل.":"Your account is already verified.");return;}
+    const next=!profile.is_verified;
     setBusy(true);
-    const {error}=await supabase.from("verification_requests").insert({user_id:userId,account_type:profile.account_type,reason:requestReason.trim(),evidence_url:evidenceUrl.trim()||null,status:"pending"});
-    setBusy(false);if(error){showNotice(error.code==="23505"?(ar?"لديك طلب قيد المراجعة بالفعل.":"You already have a pending request."):error.message);return;}
-    setRequestStatus("pending");setRequestReason("");setEvidenceUrl("");showNotice(ar?"تم إرسال طلب التوثيق للمراجعة اليدوية.":"Verification request submitted for manual review.");
-    loadProfile();
+    const {error}=await supabase.from("profiles").update({is_verified:next}).eq("id",userId);
+    setBusy(false);
+    if(error){showNotice(error.message);return;}
+    setProfile({...profile,is_verified:next});
+    showNotice(next?(ar?"تم تفعيل شارة التوثيق.":"Verification badge enabled."):(ar?"تم إيقاف شارة التوثيق.":"Verification badge disabled."));
+  };
+
+  const chooseAvatar=async()=>{
+    if(!supabase||!userId||!profile)return;
+    const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if(!permission.granted){showNotice(ar?"اسمح للتطبيق بالوصول إلى الصور.":"Allow photo library access.");return;}
+    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsEditing:true,aspect:[1,1],quality:0.85});
+    if(picked.canceled||!picked.assets[0])return;
+    setBusy(true);
+    try{
+      const asset=picked.assets[0];const response=await fetch(asset.uri);const bytes=await response.arrayBuffer();
+      const ext=(asset.mimeType||"image/jpeg").split("/")[1]||"jpg";const path=userId+"/avatar-"+Date.now()+"."+ext;
+      const uploaded=await supabase.storage.from("post-images").upload(path,bytes,{contentType:asset.mimeType||"image/jpeg",upsert:true});
+      if(uploaded.error)throw uploaded.error;
+      const url=supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
+      const saved=await supabase.from("profiles").update({avatar_url:url}).eq("id",userId);
+      if(saved.error)throw saved.error;
+      setProfile({...profile,avatar_url:url});showNotice(ar?"تم تحديث الصورة الشخصية.":"Profile photo updated.");
+    }catch(e:any){showNotice((ar?"تعذر رفع الصورة: ":"Could not upload photo: ")+(e?.message||""));}
+    finally{setBusy(false);}
   };
 
   const startConversation=async()=>{
@@ -143,14 +168,22 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
 
     {tab==="profile"&&<>
       {!profile?<ActivityIndicator color={C.blue}/>:<>
-        <View style={s.profileCard}><View style={s.avatar}><MaterialCommunityIcons name={profile.account_type==="company"?"domain":"account"} size={31} color={C.blue}/></View><Text style={s.profileName}>{profile.display_name}</Text><Text style={s.detail}>@{profile.username}</Text><Text style={s.detail}>{profile.account_type==="company"?(ar?"حساب شركة":"Company account"):(ar?"حساب شخصي":"Personal account")}</Text><Text style={s.detail}>{profile.is_private?(ar?"حساب خاص":"Private account"):(ar?"حساب عام":"Public account")}</Text><View style={s.tags}>{(profile.interests||[]).map(x=><Text key={x} style={s.tag}>{x}</Text>)}</View></View>
+        <View style={s.profileCard}>
+          <Pressable onPress={chooseAvatar} disabled={busy} style={s.avatarPress}>
+            {profile.avatar_url?<View style={s.avatarImage}><Text style={{color:C.blue,fontSize:12,fontWeight:"800"}}> </Text></View>:<View style={s.avatar}><MaterialCommunityIcons name={profile.account_type==="company"?"domain":"account"} size={31} color={C.blue}/></View>}
+            <View style={s.cameraBadge}><MaterialCommunityIcons name="camera" size={14} color="#FFFFFF"/></View>
+          </Pressable>
+          <Pressable onPress={chooseAvatar}><Text style={s.changePhoto}>{ar?"تغيير الصورة الشخصية":"Change profile photo"}</Text></Pressable>
+          <View style={{flexDirection:"row",alignItems:"center",gap:6}}><Text style={s.profileName}>{profile.display_name}</Text>{profile.is_verified&&<MaterialCommunityIcons name="check-decagram" size={20} color={profile.account_type==="company"?"#89939D":C.blue}/>}</View>
+          <Text style={s.detail}>@{profile.username}</Text>
+          <View style={s.statsRow}><View style={s.stat}><Text style={s.statNum}>{postCount}</Text><Text style={s.statLabel}>{ar?"المنشورات":"Posts"}</Text></View><View style={s.stat}><Text style={s.statNum}>{followersCount}</Text><Text style={s.statLabel}>{ar?"المتابعون":"Followers"}</Text></View><View style={s.stat}><Text style={s.statNum}>{followingCount}</Text><Text style={s.statLabel}>{ar?"يتابع":"Following"}</Text></View></View>
+          <Text style={s.detail}>{profile.account_type==="company"?(ar?"حساب شركة":"Company account"):(ar?"حساب شخصي":"Personal account")}</Text>
+          <Text style={s.bio}>{profile.bio||""}</Text>
+          <View style={s.tags}>{(profile.interests||[]).map(x=><Text key={x} style={s.tag}>{x}</Text>)}</View>
+        </View>
         <Button label={edit?(ar?"إلغاء التعديل":"Cancel edit"):(ar?"تعديل الملف الشخصي":"Edit profile")} onPress={()=>setEdit(!edit)} disabled={busy}/>
         {edit&&<View style={s.card}><Field label={ar?"الاسم":"Display name"} value={displayName} onChange={setDisplayName}/><Field label={ar?"اسم المستخدم":"Username"} value={username} onChange={setUsername}/><Field label={ar?"نبذة":"Bio"} value={bio} onChange={setBio} multiline/><Field label={ar?"التخصص":"Specialty"} value={specialty} onChange={setSpecialty}/><Text style={s.label}>{ar?"خصوصية الحساب":"Account privacy"}</Text><View style={s.row}><Pressable onPress={()=>setPrivateAccount(false)} style={[s.choice,!privateAccount&&s.choiceOn]}><Text style={s.choiceText}>{ar?"عام":"Public"}</Text></Pressable><Pressable onPress={()=>setPrivateAccount(true)} style={[s.choice,privateAccount&&s.choiceOn]}><Text style={s.choiceText}>{ar?"خاص":"Private"}</Text></Pressable></View><Button label={ar?"حفظ التعديلات":"Save changes"} onPress={saveProfile}/></View>}
-        <View style={s.card}><View style={s.cardFoot}><Text style={s.cardTitle}>{ar?"توثيق الحساب":"Account verification"}</Text><MaterialCommunityIcons name={profile.verification_status==="approved"?"check-decagram":"shield-check-outline"} size={23} color={profile.verification_status==="approved"?C.green:C.blue}/></View><Text style={s.detail}>{profile.account_type==="company"?(ar?"طلب توثيق شركة / مؤسسة":"Company verification"):(ar?"طلب توثيق فرد":"Individual verification")}</Text><Text style={s.status}>{profile.verification_status==="approved"?(ar?"موثّق":"Verified"):profile.verification_status==="pending"?(ar?"قيد المراجعة":"Pending review"):profile.verification_status==="rejected"?(ar?"مرفوض — يمكنك تقديم طلب جديد بعد التعديل":"Rejected — you may submit an updated request"):(ar?"غير موثّق":"Not verified")}</Text>
-          {profile.verification_status!=="approved"&&profile.verification_status!=="pending"&&<><Field label={ar?"سبب طلب التوثيق":"Reason for verification"} value={requestReason} onChange={setRequestReason} multiline placeholder={ar?"عرّف بنفسك أو بنشاط الشركة وسبب طلب التوثيق":"Describe yourself or your company and why verification is requested"}/><Field label={ar?"رابط إثبات أو موقع رسمي (اختياري)":"Evidence or official website URL (optional)"} value={evidenceUrl} onChange={setEvidenceUrl} placeholder="https://..."/><Button label={ar?"إرسال طلب التوثيق":"Submit verification request"} onPress={submitVerification}/></>}
-          {!!requestStatus&&<Text style={s.detail}>{ar?"آخر طلب: ":"Latest request: "}{requestStatus}</Text>}
-          <Text style={s.hint}>{ar?"التوثيق لا يتم تلقائياً. يراجع فريق الإدارة الطلب ويقرر الموافقة أو الرفض.":"Verification is never automatic. An administrator manually reviews and approves or rejects requests."}</Text>
-        </View>
+        <View style={s.card}><View style={s.cardFoot}><Text style={s.cardTitle}>{ar?"التوثيق":"Verification"}</Text><MaterialCommunityIcons name="check-decagram" size={24} color={profile.account_type==="company"?"#89939D":C.blue}/></View><Text style={s.detail}>{ar?"فعّل الشارة الزرقاء للحساب الشخصي أو الفضية لحساب الشركة. يمكنك تشغيلها أو إيقافها مباشرة.":"Enable the blue personal or silver company badge. Toggle it whenever you like."}</Text><View style={s.verifyRow}><View style={{flexDirection:"row",alignItems:"center",gap:7}}><MaterialCommunityIcons name="check-decagram" size={22} color={profile.account_type==="company"?"#89939D":C.blue}/><Text style={s.verifyText}>{profile.account_type==="company"?(ar?"شارة شركة فضية":"Silver company badge"):(ar?"شارة شخصية زرقاء":"Blue personal badge")}</Text></View><Pressable onPress={toggleVerified} disabled={busy} style={[s.toggle,profile.is_verified&&s.toggleOn]}><View style={[s.toggleKnob,profile.is_verified&&s.toggleKnobOn]}/></Pressable></View><Text style={s.status}>{profile.is_verified?(ar?"التوثيق مفعّل":"Verification enabled"):(ar?"التوثيق متوقف":"Verification off")}</Text></View>
         <Pressable style={s.signout} onPress={async()=>{await supabase?.auth.signOut();}}><Text style={s.signoutText}>{ar?"تسجيل الخروج":"Sign out"}</Text></Pressable>
       </>}
     </>}
@@ -171,5 +204,5 @@ const s=StyleSheet.create({
  card:{backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:16,padding:14,marginTop:11},cardTitle:{color:C.ink,fontSize:14,fontWeight:"800"},detail:{color:C.muted,fontSize:11,lineHeight:18,marginTop:5},label:{color:C.ink,fontSize:11,fontWeight:"800",marginBottom:7,marginTop:12},
  input:{minHeight:45,backgroundColor:C.white,borderWidth:1,borderColor:"#CFD9DE",borderRadius:12,paddingHorizontal:12,color:C.ink,fontSize:12,marginTop:8},button:{height:44,backgroundColor:C.blue,borderRadius:12,alignItems:"center",justifyContent:"center",marginTop:13},buttonText:{color:C.white,fontSize:12,fontWeight:"900"},
  notice:{backgroundColor:"#EFF8FE",borderColor:"#C8E7FA",borderWidth:1,borderRadius:12,padding:11,marginBottom:10,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},noticeText:{color:C.ink,fontSize:11,flex:1,lineHeight:18},
- cardFoot:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},tag:{color:"#1876B8",backgroundColor:"#E8F5FD",overflow:"hidden",borderRadius:9,paddingHorizontal:9,paddingVertical:5,fontSize:10,alignSelf:"flex-start",marginTop:8},smallButton:{backgroundColor:C.blue,borderRadius:10,paddingHorizontal:15,paddingVertical:8},smallButtonText:{color:C.white,fontWeight:"800",fontSize:11},secondaryButton:{backgroundColor:C.pale,borderWidth:1,borderColor:C.line},secondaryButtonText:{color:C.muted},profileCard:{alignItems:"center",backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:18,padding:20,marginBottom:12},avatar:{width:66,height:66,borderRadius:22,backgroundColor:"#E8F5FD",alignItems:"center",justifyContent:"center",marginBottom:10},profileName:{fontSize:17,color:C.ink,fontWeight:"900"},tags:{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:10},status:{color:C.blue,fontWeight:"900",fontSize:12,marginTop:9},hint:{fontSize:10,color:C.muted,lineHeight:17,marginTop:12},row:{flexDirection:"row",gap:8},choice:{flex:1,borderWidth:1,borderColor:C.line,borderRadius:10,padding:10,alignItems:"center"},choiceOn:{borderColor:C.blue,backgroundColor:"#E8F5FD"},choiceText:{color:C.ink,fontWeight:"700",fontSize:11},signout:{backgroundColor:"#FCE8EA",borderRadius:11,padding:12,alignItems:"center",marginTop:12},signoutText:{color:C.red,fontWeight:"900",fontSize:12},section:{color:C.ink,fontSize:14,fontWeight:"900",marginTop:22,marginBottom:5},empty:{textAlign:"center",color:C.muted,padding:30},messageList:{maxHeight:390,marginTop:12},bubble:{alignSelf:"flex-start",maxWidth:"85%",backgroundColor:C.pale,borderRadius:14,padding:11,marginVertical:5},myBubble:{alignSelf:"flex-end",backgroundColor:"#DFF1FD"},bubbleText:{color:C.ink,fontSize:12,lineHeight:18},myBubbleText:{color:"#13527D"},time:{color:C.muted,fontSize:9,marginTop:5},compose:{flexDirection:"row",alignItems:"center",gap:8,marginTop:10},composeInput:{flex:1,minHeight:44,borderWidth:1,borderColor:C.line,borderRadius:12,paddingHorizontal:12,color:C.ink},send:{width:44,height:44,borderRadius:12,backgroundColor:C.blue,alignItems:"center",justifyContent:"center"},back:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:7,marginTop:18,padding:10},backText:{color:C.blue,fontSize:12,fontWeight:"800"},rtl:{textAlign:"right",writingDirection:"rtl"}
+ cardFoot:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},tag:{color:"#1876B8",backgroundColor:"#E8F5FD",overflow:"hidden",borderRadius:9,paddingHorizontal:9,paddingVertical:5,fontSize:10,alignSelf:"flex-start",marginTop:8},smallButton:{backgroundColor:C.blue,borderRadius:10,paddingHorizontal:15,paddingVertical:8},smallButtonText:{color:C.white,fontWeight:"800",fontSize:11},secondaryButton:{backgroundColor:C.pale,borderWidth:1,borderColor:C.line},secondaryButtonText:{color:C.muted},profileCard:{alignItems:"center",backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:18,padding:20,marginBottom:12},avatarPress:{position:"relative"},avatarImage:{width:82,height:82,borderRadius:41,backgroundColor:"#E8F5FD",overflow:"hidden"},cameraBadge:{position:"absolute",right:-2,bottom:4,width:25,height:25,borderRadius:13,backgroundColor:C.blue,alignItems:"center",justifyContent:"center",borderWidth:2,borderColor:C.white},changePhoto:{color:C.blue,fontSize:11,fontWeight:"800",marginTop:7,marginBottom:9},statsRow:{flexDirection:"row",justifyContent:"space-around",width:"100%",marginTop:17,paddingTop:13,borderTopWidth:1,borderBottomWidth:1,borderColor:C.line,paddingBottom:13},stat:{alignItems:"center",minWidth:70},statNum:{fontSize:17,fontWeight:"900",color:C.ink},statLabel:{fontSize:10,color:C.muted,marginTop:3},bio:{fontSize:12,color:C.ink,marginTop:8,textAlign:"center"},verifyRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginTop:15},verifyText:{fontSize:12,color:C.ink,fontWeight:"800"},toggle:{width:48,height:28,borderRadius:14,backgroundColor:"#CBD2D9",padding:3,justifyContent:"center"},toggleOn:{backgroundColor:C.blue},toggleKnob:{width:22,height:22,borderRadius:11,backgroundColor:"#FFFFFF"},toggleKnobOn:{alignSelf:"flex-end"},avatar:{width:66,height:66,borderRadius:22,backgroundColor:"#E8F5FD",alignItems:"center",justifyContent:"center",marginBottom:10},profileName:{fontSize:17,color:C.ink,fontWeight:"900"},tags:{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:10},status:{color:C.blue,fontWeight:"900",fontSize:12,marginTop:9},hint:{fontSize:10,color:C.muted,lineHeight:17,marginTop:12},row:{flexDirection:"row",gap:8},choice:{flex:1,borderWidth:1,borderColor:C.line,borderRadius:10,padding:10,alignItems:"center"},choiceOn:{borderColor:C.blue,backgroundColor:"#E8F5FD"},choiceText:{color:C.ink,fontWeight:"700",fontSize:11},signout:{backgroundColor:"#FCE8EA",borderRadius:11,padding:12,alignItems:"center",marginTop:12},signoutText:{color:C.red,fontWeight:"900",fontSize:12},section:{color:C.ink,fontSize:14,fontWeight:"900",marginTop:22,marginBottom:5},empty:{textAlign:"center",color:C.muted,padding:30},messageList:{maxHeight:390,marginTop:12},bubble:{alignSelf:"flex-start",maxWidth:"85%",backgroundColor:C.pale,borderRadius:14,padding:11,marginVertical:5},myBubble:{alignSelf:"flex-end",backgroundColor:"#DFF1FD"},bubbleText:{color:C.ink,fontSize:12,lineHeight:18},myBubbleText:{color:"#13527D"},time:{color:C.muted,fontSize:9,marginTop:5},compose:{flexDirection:"row",alignItems:"center",gap:8,marginTop:10},composeInput:{flex:1,minHeight:44,borderWidth:1,borderColor:C.line,borderRadius:12,paddingHorizontal:12,color:C.ink},send:{width:44,height:44,borderRadius:12,backgroundColor:C.blue,alignItems:"center",justifyContent:"center"},back:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:7,marginTop:18,padding:10},backText:{color:C.blue,fontSize:12,fontWeight:"800"},rtl:{textAlign:"right",writingDirection:"rtl"}
 });
