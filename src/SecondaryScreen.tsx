@@ -22,7 +22,7 @@ export default function SecondaryScreen({ tab, isArabic, onBackHome }: Props) {
   const [exploreQuery, setExploreQuery] = useState("");
   const [profile, setProfile] = useState<any>(null);
   const [joinedCommunities, setJoinedCommunities] = useState<string[]>([]);
-  useEffect(() => { if (tab === "profile" && supabase) { supabase.auth.getUser().then(async ({data}) => { if(data.user){ const {data:row}=await supabase.from("profiles").select("display_name,username,is_private,interests").eq("id",data.user.id).maybeSingle(); setProfile(row); } }); } }, [tab]);
+  useEffect(() => { const client = supabase; if (tab === "profile" && client) { client.auth.getUser().then(async ({data}) => { if(data.user){ const {data:row}=await client.from("profiles").select("display_name,username,is_private,interests").eq("id",data.user.id).maybeSingle(); setProfile(row); } }); } }, [tab]);
   const title = tab === "explore" ? (ar ? "استكشف المجتمع" : "Explore the community")
     : tab === "groups" ? (ar ? "المجتمعات التقنية" : "Technical communities")
     : tab === "messages" ? (ar ? "الرسائل" : "Messages")
