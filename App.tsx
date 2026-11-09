@@ -14,7 +14,7 @@ import { supabase } from "./src/lib/supabase";
 type Post = {
   id: string | number; name: string; role: string; time: string; category: string;
   title: string; body: string; tags: string[]; likes: number; comments: number;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; imageUrl?: string | null;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; imageUrl?: string | null; avatarUrl?: string | null;
 };
 
 const categories = ["الكل", "البرمجة", "الأمن السيبراني", "الذكاء الاصطناعي", "الشبكات"];
@@ -45,10 +45,10 @@ function CommunityApp() {
       if (!alive) return;
       setCurrentUserId(session?.user.id ?? null);
       if (!session) return;
-      const { data, error } = await client.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,profiles(display_name,specialty,account_type)").order("created_at", { ascending: false }).limit(50);
+      const { data, error } = await client.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,profiles(display_name,specialty,account_type,avatar_url)").order("created_at", { ascending: false }).limit(50);
       if (error) { setFeedNotice("تعذر تحميل المنشورات من قاعدة البيانات. تأكد من تشغيل ترحيل 0003."); return; }
       if (data && alive) {
-        const rows: Post[] = data.map((p: any) => ({ id:p.id, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], imageUrl:p.image_url, likes:0, comments:0, icon:"account-outline", color:"#1D9BF0" }));
+        const rows: Post[] = data.map((p: any) => ({ id:p.id, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], imageUrl:p.image_url, avatarUrl:p.profiles?.avatar_url, likes:0, comments:0, icon:"account-outline", color:"#1D9BF0" }));
         setPosts(rows);
         const ids=rows.map(p=>p.id);
         if(ids.length){
@@ -89,6 +89,13 @@ function CommunityApp() {
     { key:"profile", icon:"account-circle-outline" as const, label:labels.profile }
   ];
 
+  const loadPostComments = async (postId:string) => {
+    if(!supabase)return;
+    const {data,error}=await supabase.from("comments").select("id,body,created_at,profiles(display_name)").eq("post_id",postId).order("created_at",{ascending:true}).limit(100);
+    if(error){setFeedNotice("تعذر تحميل التعليقات: "+error.message);return;}
+    setPostComments(old=>({...old,[postId]:(data||[]).map((c:any)=>c.body)}));
+  };
+
   const toggleLike = async (id:string | number) => {
     if (!supabase || !currentUserId || typeof id !== "string") { setFeedNotice("سجّل الدخول لتتمكن من الإعجاب."); return; }
     const exists=liked.includes(id);
@@ -120,7 +127,7 @@ function CommunityApp() {
     if(error){setFeedNotice("تعذر نشر المنشور: "+error.message);return;}
     setDraft(""); setSelectedImage(null); setComposerOpen(false);
     const {data}=await supabase.from("posts").select("id,title,body,category,tags,image_url,created_at,profiles(display_name,specialty)").order("created_at",{ascending:false}).limit(50);
-    if(data)setPosts(data.map((p:any)=>({id:p.id,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],imageUrl:p.image_url,likes:0,comments:0,icon:"account-outline",color:"#1D9BF0"})));
+    if(data)setPosts(data.map((p:any)=>({id:p.id,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],imageUrl:p.image_url,avatarUrl:p.profiles?.avatar_url,likes:0,comments:0,icon:"account-outline",color:"#1D9BF0"})));
     setFeedNotice("");
   };
 
@@ -210,7 +217,7 @@ function CommunityApp() {
             const isSaved = saved.includes(post.id);
             return <View key={post.id} style={styles.postCard}>
               <View style={styles.postHeader}>
-                <View style={[styles.avatar,{backgroundColor:post.color+"22",borderColor:post.color+"66"}]}><MaterialCommunityIcons name={post.icon} size={23} color={post.color}/></View>
+                {post.avatarUrl ? <Image source={{uri:post.avatarUrl}} style={[styles.avatar,{overflow:"hidden"}]} /> : <View style={[styles.avatar,{backgroundColor:post.color+"22",borderColor:post.color+"66"}]}><MaterialCommunityIcons name={post.icon} size={23} color={post.color}/></View>}
                 <View style={styles.authorInfo}>
                   <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text><MaterialCommunityIcons name="account-circle-outline" size={14} color="#7891AB"/></View>
                   <Text style={styles.authorRole}>{post.role} · {post.time}</Text>
@@ -224,7 +231,7 @@ function CommunityApp() {
               <View style={styles.postDivider}/>
               <View style={styles.postActions}>
                 <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#657786"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{post.likes+(isLiked?1:0)}</Text></Pressable>
-                <Pressable style={styles.action} onPress={()=>{setCommentingPost(commentingPost===post.id?null:post.id);setCommentDraft("");}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{post.comments+(postComments[String(post.id)]?.length||0)}</Text></Pressable>
+                <Pressable style={styles.action} onPress={()=>{const opening=commentingPost!==post.id;setCommentingPost(opening?post.id:null);setCommentDraft("");if(opening&&typeof post.id==="string")loadPostComments(post.id);}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{post.comments}</Text></Pressable>
                 <Pressable style={styles.action} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#657786"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
                 <Pressable style={styles.saveAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#1D9BF0":"#657786"}/></Pressable>
               </View>
@@ -232,7 +239,7 @@ function CommunityApp() {
                 {(postComments[String(post.id)]||[]).map((comment,index)=><View key={index} style={styles.commentBubble}><Text style={styles.commentAuthor}>{isArabic?"أنت":"You"}</Text><Text style={[styles.commentBody,isArabic&&styles.rtl]}>{comment}</Text></View>)}
                 <View style={styles.commentComposer}>
                   <TextInput value={commentDraft} onChangeText={setCommentDraft} placeholder={isArabic?"اكتب تعليقاً...":"Write a comment..."} placeholderTextColor="#7188A2" style={[styles.commentInput,isArabic&&styles.rtl]}/>
-                  <Pressable onPress={async ()=>{if(!commentDraft.trim())return;if(!supabase||!currentUserId||typeof post.id!=="string"){setFeedNotice("سجّل الدخول لإضافة تعليق.");return;}const value=commentDraft.trim();const {error}=await supabase.from("comments").insert({post_id:post.id,author_id:currentUserId,body:value});if(error){setFeedNotice("تعذر إضافة التعليق: "+error.message);return;}setPostComments(old=>({...old,[String(post.id)]:[...(old[String(post.id)]||[]),value]}));setCommentDraft("");}} style={styles.commentSend}><MaterialCommunityIcons name="send" size={17} color="#FFFFFF"/></Pressable>
+                  <Pressable onPress={async ()=>{if(!commentDraft.trim())return;if(!supabase||!currentUserId||typeof post.id!=="string"){setFeedNotice("سجّل الدخول لإضافة تعليق.");return;}const value=commentDraft.trim();const {error}=await supabase.from("comments").insert({post_id:post.id,author_id:currentUserId,body:value});if(error){setFeedNotice("تعذر إضافة التعليق: "+error.message);return;}setPostComments(old=>({...old,[String(post.id)]:[...(old[String(post.id)]||[]),value]}));setPosts(old=>old.map(p=>p.id===post.id?{...p,comments:p.comments+1}:p));setCommentDraft("");}} style={styles.commentSend}><MaterialCommunityIcons name="send" size={17} color="#FFFFFF"/></Pressable>
                 </View>
               </View>}
             </View>;
