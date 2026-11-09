@@ -24,6 +24,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [accountType, setAccountType] = useState<"personal" | "company">("personal");
+  const [companyName, setCompanyName] = useState("");
+  const [companyWebsite, setCompanyWebsite] = useState("");
+  const [companyIndustry, setCompanyIndustry] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [notice, setNotice] = useState("");
@@ -31,8 +35,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   const loadProfile = async (user: any) => {
     if (!supabase) return;
-    const { data } = await supabase.from("profiles").select("interests").eq("id", user.id).maybeSingle();
-    setNeedsInterests(!data?.interests || data.interests.length === 0);
+    const { data, error } = await supabase.from("profiles").select("interests,onboarding_completed").eq("id", user.id).maybeSingle();
+    setNeedsInterests(!error && data?.onboarding_completed !== true);
   };
 
   useEffect(() => {
@@ -90,14 +94,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
-          options: { data: { display_name: name.trim(), username: username.trim().toLowerCase(), ...(normalizedBirthDate ? { date_of_birth: normalizedBirthDate } : {}), is_private: isPrivate, account_type: "personal" } }
+          options: { data: { display_name: name.trim(), username: username.trim().toLowerCase(), ...(normalizedBirthDate ? { date_of_birth: normalizedBirthDate } : {}), is_private: isPrivate, account_type: accountType, company_name: companyName.trim(), company_website: companyWebsite.trim(), company_industry: companyIndustry.trim() } }
         });
         if (error) throw error;
         if (!data.session) {
           setNotice("الحساب أُنشئ لكن Supabase ما زال يطلب تأكيد البريد. عطّل Confirm email من إعدادات Authentication في Supabase ثم جرّب التسجيل.");
         } else {
           setSession(data.session);
-          await supabase.from("profiles").update({ username: username.trim().toLowerCase(), is_private: isPrivate }).eq("id", data.user!.id);
+          const { error: profileError } = await supabase.from("profiles").update({ username: username.trim().toLowerCase(), is_private: isPrivate, account_type: accountType, company_name: accountType === "company" ? companyName.trim() : null, company_website: accountType === "company" ? companyWebsite.trim() : null, company_industry: accountType === "company" ? companyIndustry.trim() : null }).eq("id", data.user!.id);
+          if (profileError) throw profileError;
           if (normalizedBirthDate) await supabase.from("account_private_details").upsert({ user_id: data.user!.id, date_of_birth: normalizedBirthDate });
           setNeedsInterests(true);
         }
@@ -113,12 +118,12 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     } finally { setBusy(false); }
   };
 
-  const finishInterests = async () => {
-    if (!supabase || !session?.user || selected.length === 0) { setNotice("اختر اهتماماً واحداً على الأقل."); return; }
+  const finishInterests = async (skip = false) => {
+    if (!supabase || !session?.user) return;
     setBusy(true);
-    const { error } = await supabase.from("profiles").update({ interests: selected }).eq("id", session.user.id);
+    const { error } = await supabase.from("profiles").update({ interests: skip ? [] : selected, onboarding_completed: true }).eq("id", session.user.id);
     setBusy(false);
-    if (error) { setNotice("تعذر حفظ اهتماماتك: " + error.message); return; }
+    if (error) { setNotice("تعذر حفظ الإعداد الأولي. تأكد من تشغيل آخر تحديث لقاعدة البيانات، ثم أعد المحاولة: " + error.message); return; }
     setNeedsInterests(false);
   };
 
@@ -126,10 +131,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   if (session && needsInterests) return <SafeAreaView style={a.safe}><StatusBar barStyle="dark-content" backgroundColor="#F5F8FA"/><ScrollView contentContainerStyle={a.onboard}>
     <Brand />
     <Text style={a.title}>شو المجالات اللي بتهمك؟</Text>
-    <Text style={a.sub}>اختار مجالاً واحداً أو أكثر لنرتّب لك المحتوى المناسب.</Text>
+    <Text style={a.sub}>اختار مجالاتك، أو تخطَّ هذه الخطوة وغيّرها لاحقاً من الإعدادات.</Text>
     <View style={a.interests}>{interests.map(item => <Pressable key={item} onPress={() => setSelected(old => old.includes(item) ? old.filter(x => x !== item) : [...old, item])} style={[a.interest, selected.includes(item) && a.interestOn]}><Text style={[a.interestText, selected.includes(item) && a.interestTextOn]}>{item}</Text>{selected.includes(item) && <MaterialCommunityIcons name="check-circle" size={17} color={BLUE}/>}</Pressable>)}</View>
     {!!notice && <Text style={a.error}>{notice}</Text>}
-    <Pressable style={a.primary} onPress={finishInterests} disabled={busy}><Text style={a.primaryText}>{busy ? "جارٍ الحفظ..." : "ابدأ استخدام المنصة"}</Text></Pressable>
+    <Pressable style={a.primary} onPress={() => finishInterests(false)} disabled={busy}><Text style={a.primaryText}>{busy ? "جارٍ الحفظ..." : "متابعة"}</Text></Pressable>
+    <Pressable style={a.skipButton} onPress={() => finishInterests(true)} disabled={busy}><Text style={a.skipText}>تخطي الآن</Text></Pressable>
   </ScrollView></SafeAreaView>;
   if (session) return <>{children}</>;
   return <SafeAreaView style={a.safe}><StatusBar barStyle="dark-content" backgroundColor="#F5F8FA"/><ScrollView contentContainerStyle={a.auth}>
@@ -140,6 +146,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       {mode === "signup" && <>
         <Field label="الاسم" value={name} change={setName} placeholder="اسمك الكامل"/>
         <Field label="اسم المستخدم" value={username} change={setUsername} placeholder="username" autoCapitalize="none"/>
+        <Text style={a.label}>نوع الحساب</Text><View style={a.privacyRow}><Pressable style={[a.privacy,accountType==="personal"&&a.privacyOn]} onPress={()=>setAccountType("personal")}><Text style={[a.privacyText,accountType==="personal"&&a.privacyTextOn]}>شخصي</Text></Pressable><Pressable style={[a.privacy,accountType==="company"&&a.privacyOn]} onPress={()=>setAccountType("company")}><Text style={[a.privacyText,accountType==="company"&&a.privacyTextOn]}>شركة / مؤسسة</Text></Pressable></View>
+        {accountType === "company" && <><Field label="اسم الشركة" value={companyName} change={setCompanyName} placeholder="اسم الشركة"/><Field label="الموقع الإلكتروني (اختياري)" value={companyWebsite} change={setCompanyWebsite} placeholder="https://example.com" autoCapitalize="none"/><Field label="مجال الشركة" value={companyIndustry} change={setCompanyIndustry} placeholder="مثلاً: التقنية"/></>}
         <Text style={a.label}>تاريخ الميلاد (اختياري)</Text>
         <View style={a.dateRow}>
           <Pressable style={a.dateChoice} onPress={() => setDatePickerPart("day")}><Text style={a.dateChoiceText}>{birthDay || "اليوم"}</Text><MaterialCommunityIcons name="chevron-down" size={18} color="#657786"/></Pressable>
@@ -191,5 +199,6 @@ const a = StyleSheet.create({
  modalBackdrop:{flex:1,backgroundColor:"rgba(0,0,0,0.35)",justifyContent:"flex-end"},dateModal:{backgroundColor:"#FFFFFF",borderTopLeftRadius:22,borderTopRightRadius:22,padding:18,maxHeight:"65%"},modalHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",paddingBottom:12,borderBottomWidth:1,borderBottomColor:"#E6ECF0"},modalTitle:{fontSize:17,fontWeight:"800",color:"#17202A"},optionsList:{marginTop:8},optionItem:{paddingVertical:13,borderBottomWidth:1,borderBottomColor:"#F0F3F5"},optionText:{textAlign:"center",fontSize:15,color:"#33424F"},
  privacyRow:{flexDirection:"row",gap:8},privacy:{flex:1,padding:12,borderWidth:1,borderColor:"#CFD9DE",borderRadius:11,alignItems:"center"},privacyOn:{borderColor:BLUE,backgroundColor:"#E8F5FD"},privacyText:{fontSize:12,color:"#657786",fontWeight:"700"},privacyTextOn:{color:BLUE},
  primary:{height:49,backgroundColor:BLUE,borderRadius:25,alignItems:"center",justifyContent:"center",marginTop:20},primaryText:{color:"#FFFFFF",fontSize:14,fontWeight:"900"},switch:{color:BLUE,textAlign:"center",fontSize:12,fontWeight:"800",marginTop:18},error:{color:"#C0392B",fontSize:12,lineHeight:18,marginTop:12},legal:{textAlign:"center",fontSize:10,color:"#8B98A5",marginTop:22},
+ skipButton:{height:46,borderWidth:1,borderColor:"#CFD9DE",borderRadius:24,alignItems:"center",justifyContent:"center",marginTop:10,backgroundColor:"#FFFFFF"},skipText:{color:"#536471",fontSize:13,fontWeight:"800"},
  interests:{flexDirection:"row",flexWrap:"wrap",gap:9,marginTop:20},interest:{paddingVertical:12,paddingHorizontal:13,borderWidth:1,borderColor:"#CFD9DE",borderRadius:22,backgroundColor:"#FFFFFF",flexDirection:"row",alignItems:"center",gap:7},interestOn:{borderColor:BLUE,backgroundColor:"#E8F5FD"},interestText:{fontSize:12,color:"#536471",fontWeight:"700"},interestTextOn:{color:BLUE}
 });
