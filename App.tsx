@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput,
   I18nManager, StatusBar, Platform, Share
@@ -7,9 +7,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import SecondaryScreen from "./src/SecondaryScreen";
+import { supabase } from "./src/lib/supabase";
 
 type Post = {
-  id: number; name: string; role: string; time: string; category: string;
+  id: string | number; name: string; role: string; time: string; category: string;
   title: string; body: string; tags: string[]; likes: number; comments: number;
   icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string;
 };
@@ -52,7 +53,41 @@ export default function App() {
   const [draft, setDraft] = useState("");
   const [commentingPost, setCommentingPost] = useState<number | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
-  const [postComments, setPostComments] = useState<Record<number, string[]>>({});
+  const [postComments, setPostComments] = useState<Record<string, string[]>>({});
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [feedNotice, setFeedNotice] = useState("");
+
+  useEffect(() => {
+    if (!supabase) return;
+    let alive = true;
+    const load = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!alive) return;
+      setCurrentUserId(session?.user.id ?? null);
+      if (!session) return;
+      const { data, error } = await supabase.from("posts").select("id,title,body,category,tags,created_at,author_id,profiles(display_name,specialty,account_type)").order("created_at", { ascending: false }).limit(50);
+      if (error) { setFeedNotice("تعذر تحميل المنشورات من قاعدة البيانات. تأكد من تشغيل ترحيل 0003."); return; }
+      if (data && alive) {
+        const rows: Post[] = data.map((p: any) => ({ id:p.id, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], likes:0, comments:0, icon:"account-outline", color:"#38BDF8" }));
+        setPosts(rows);
+        const ids=rows.map(p=>p.id);
+        if(ids.length){
+          const [{data: likes},{data: comments},{data: mine},{data:saves}] = await Promise.all([
+            supabase.from("post_likes").select("post_id").in("post_id",ids),
+            supabase.from("comments").select("post_id").in("post_id",ids),
+            supabase.from("post_likes").select("post_id").eq("user_id",session.user.id).in("post_id",ids),
+            supabase.from("post_saves").select("post_id").eq("user_id",session.user.id).in("post_id",ids)
+          ]);
+          setPosts(old=>old.map(p=>({...p,likes:(likes||[]).filter((x:any)=>x.post_id===p.id).length,comments:(comments||[]).filter((x:any)=>x.post_id===p.id).length})));
+          setLiked((mine||[]).map((x:any)=>x.post_id)); setSaved((saves||[]).map((x:any)=>x.post_id));
+        }
+        setFeedNotice("");
+      }
+    };
+    load();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session)=>{setCurrentUserId(session?.user.id ?? null); if(session) load();});
+    return ()=>{alive=false;listener.subscription.unsubscribe();};
+  }, []);
 
   const isArabic = language === "ar";
   const visiblePosts = useMemo(() => posts.filter(post => {
@@ -74,18 +109,28 @@ export default function App() {
     { key:"profile", icon:"account-circle-outline" as const, label:labels.profile }
   ];
 
-  const toggleLike = (id:number) => setLiked(old => old.includes(id) ? old.filter(x=>x!==id) : [...old,id]);
-  const toggleSave = (id:number) => setSaved(old => old.includes(id) ? old.filter(x=>x!==id) : [...old,id]);
-  const publish = () => {
+  const toggleLike = async (id:string | number) => {
+    if (!supabase || !currentUserId || typeof id !== "string") { setFeedNotice("سجّل الدخول لتتمكن من الإعجاب."); return; }
+    const exists=liked.includes(id);
+    setLiked(old=>exists?old.filter(x=>x!==id):[...old,id]);
+    const result=exists ? await supabase.from("post_likes").delete().eq("post_id",id).eq("user_id",currentUserId) : await supabase.from("post_likes").insert({post_id:id,user_id:currentUserId});
+    if(result.error){setLiked(old=>exists?[...old,id]:old.filter(x=>x!==id));setFeedNotice(result.error.message);}
+  };
+  const toggleSave = async (id:string | number) => {
+    if (!supabase || !currentUserId || typeof id !== "string") { setFeedNotice("سجّل الدخول لحفظ المنشورات."); return; }
+    const exists=saved.includes(id); setSaved(old=>exists?old.filter(x=>x!==id):[...old,id]);
+    const result=exists ? await supabase.from("post_saves").delete().eq("post_id",id).eq("user_id",currentUserId) : await supabase.from("post_saves").insert({post_id:id,user_id:currentUserId});
+    if(result.error){setSaved(old=>exists?[...old,id]:old.filter(x=>x!==id));setFeedNotice(result.error.message);}
+  };
+  const publish = async () => {
     if (!draft.trim()) return;
-    setPosts(old => [{
-      id: Date.now(), name: isArabic ? "أنت" : "You",
-      role: isArabic ? "عضو جديد" : "New member",
-      time: isArabic ? "الآن" : "Now", category: isArabic ? "البرمجة" : "Programming",
-      title: draft.trim(), body: isArabic ? "منشور جديد من المجتمع التقني." : "A new post from the tech community.",
-      tags: ["Community"], likes:0, comments:0, icon:"account-outline", color:"#38BDF8"
-    }, ...old]);
+    if (!supabase || !currentUserId) { setFeedNotice("أنشئ حساباً وسجّل الدخول قبل النشر."); return; }
+    const {error}=await supabase.from("posts").insert({author_id:currentUserId,category:"البرمجة",title:draft.trim(),body:"",tags:["Community"]});
+    if(error){setFeedNotice("تعذر نشر المنشور: "+error.message);return;}
     setDraft(""); setComposerOpen(false);
+    const {data}=await supabase.from("posts").select("id,title,body,category,tags,created_at,profiles(display_name,specialty)").order("created_at",{ascending:false}).limit(50);
+    if(data)setPosts(data.map((p:any)=>({id:p.id,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],likes:0,comments:0,icon:"account-outline",color:"#38BDF8"})));
+    setFeedNotice("");
   };
 
   return (
@@ -137,6 +182,7 @@ export default function App() {
             <MaterialCommunityIcons name="tune-variant" size={19} color="#7F9AB6" />
           </View>
 
+          {!!feedNotice && <Text style={{color:"#F4B860",fontSize:11,marginTop:10}}>{feedNotice}</Text>}
           <View style={styles.sectionHeading}>
             <View><Text style={[styles.sectionTitle, isArabic && styles.rtl]}>{labels.feed}</Text><Text style={[styles.sectionHint, isArabic && styles.rtl]}>{labels.demo}</Text></View>
             <Pressable style={styles.writeButton} onPress={()=>setComposerOpen(true)}>
