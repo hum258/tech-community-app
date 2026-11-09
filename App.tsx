@@ -100,8 +100,13 @@ function CommunityApp() {
     if (!supabase || !currentUserId || typeof id !== "string") { setFeedNotice("سجّل الدخول لتتمكن من الإعجاب."); return; }
     const exists=liked.includes(id);
     setLiked(old=>exists?old.filter(x=>x!==id):[...old,id]);
+    setPosts(old=>old.map(p=>p.id===id?{...p,likes:Math.max(0,p.likes+(exists?-1:1))}:p));
     const result=exists ? await supabase.from("post_likes").delete().eq("post_id",id).eq("user_id",currentUserId) : await supabase.from("post_likes").insert({post_id:id,user_id:currentUserId});
-    if(result.error){setLiked(old=>exists?[...old,id]:old.filter(x=>x!==id));setFeedNotice(result.error.message);}
+    if(result.error){
+      setLiked(old=>exists?[...old,id]:old.filter(x=>x!==id));
+      setPosts(old=>old.map(p=>p.id===id?{...p,likes:Math.max(0,p.likes+(exists?1:-1))}:p));
+      setFeedNotice(result.error.message);
+    }
   };
   const toggleSave = async (id:string | number) => {
     if (!supabase || !currentUserId || typeof id !== "string") { setFeedNotice("سجّل الدخول لحفظ المنشورات."); return; }
@@ -230,7 +235,7 @@ function CommunityApp() {
               {post.imageUrl ? <Image source={{uri:post.imageUrl}} style={{width:"100%",height:230,borderRadius:14,marginTop:12}} resizeMode="cover"/> : null}<View style={styles.tags}>{post.tags.map(tag=><View key={tag} style={styles.tag}><Text style={styles.tagText}>#{tag}</Text></View>)}</View>
               <View style={styles.postDivider}/>
               <View style={styles.postActions}>
-                <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#657786"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{post.likes+(isLiked?1:0)}</Text></Pressable>
+                <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#657786"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{post.likes}</Text></Pressable>
                 <Pressable style={styles.action} onPress={()=>{const opening=commentingPost!==post.id;setCommentingPost(opening?post.id:null);setCommentDraft("");if(opening&&typeof post.id==="string")loadPostComments(post.id);}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{post.comments}</Text></Pressable>
                 <Pressable style={styles.action} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#657786"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
                 <Pressable style={styles.saveAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#1D9BF0":"#657786"}/></Pressable>
