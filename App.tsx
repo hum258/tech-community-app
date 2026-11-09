@@ -14,7 +14,7 @@ import { supabase } from "./src/lib/supabase";
 type Post = {
   id: string | number; name: string; role: string; time: string; category: string;
   title: string; body: string; tags: string[]; likes: number; comments: number;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; imageUrl?: string | null; avatarUrl?: string | null;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; imageUrl?: string | null; avatarUrl?: string | null; isVerified?: boolean; accountType?: "personal" | "company";
 };
 
 const categories = ["الكل", "البرمجة", "الأمن السيبراني", "الذكاء الاصطناعي", "الشبكات"];
@@ -45,10 +45,10 @@ function CommunityApp() {
       if (!alive) return;
       setCurrentUserId(session?.user.id ?? null);
       if (!session) return;
-      const { data, error } = await client.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,profiles(display_name,specialty,account_type,avatar_url)").order("created_at", { ascending: false }).limit(50);
+      const { data, error } = await client.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,profiles(display_name,specialty,account_type,avatar_url,is_verified)").order("created_at", { ascending: false }).limit(50);
       if (error) { setFeedNotice("تعذر تحميل المنشورات من قاعدة البيانات. تأكد من تشغيل ترحيل 0003."); return; }
       if (data && alive) {
-        const rows: Post[] = data.map((p: any) => ({ id:p.id, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], imageUrl:p.image_url, avatarUrl:p.profiles?.avatar_url, likes:0, comments:0, icon:"account-outline", color:"#1D9BF0" }));
+        const rows: Post[] = data.map((p: any) => ({ id:p.id, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], imageUrl:p.image_url, avatarUrl:p.profiles?.avatar_url, isVerified:!!p.profiles?.is_verified, accountType:p.profiles?.account_type, likes:0, comments:0, icon:"account-outline", color:"#1D9BF0" }));
         setPosts(rows);
         const ids=rows.map(p=>p.id);
         if(ids.length){
@@ -127,7 +127,7 @@ function CommunityApp() {
     if(error){setFeedNotice("تعذر نشر المنشور: "+error.message);return;}
     setDraft(""); setSelectedImage(null); setComposerOpen(false);
     const {data}=await supabase.from("posts").select("id,title,body,category,tags,image_url,created_at,profiles(display_name,specialty)").order("created_at",{ascending:false}).limit(50);
-    if(data)setPosts(data.map((p:any)=>({id:p.id,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],imageUrl:p.image_url,avatarUrl:p.profiles?.avatar_url,likes:0,comments:0,icon:"account-outline",color:"#1D9BF0"})));
+    if(data)setPosts(data.map((p:any)=>({id:p.id,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],imageUrl:p.image_url,avatarUrl:p.profiles?.avatar_url,isVerified:!!p.profiles?.is_verified,accountType:p.profiles?.account_type,likes:0,comments:0,icon:"account-outline",color:"#1D9BF0"})));
     setFeedNotice("");
   };
 
@@ -219,7 +219,7 @@ function CommunityApp() {
               <View style={styles.postHeader}>
                 {post.avatarUrl ? <Image source={{uri:post.avatarUrl}} style={[styles.avatar,{overflow:"hidden"}]} /> : <View style={[styles.avatar,{backgroundColor:post.color+"22",borderColor:post.color+"66"}]}><MaterialCommunityIcons name={post.icon} size={23} color={post.color}/></View>}
                 <View style={styles.authorInfo}>
-                  <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text><MaterialCommunityIcons name="account-circle-outline" size={14} color="#7891AB"/></View>
+                  <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text>{post.isVerified&&<MaterialCommunityIcons name="check-decagram" size={15} color={post.accountType==="company"?"#89939D":"#1D9BF0"}/>}</View>
                   <Text style={styles.authorRole}>{post.role} · {post.time}</Text>
                 </View>
                 <Pressable style={styles.moreButton}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#657786"/></Pressable>
