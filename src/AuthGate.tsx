@@ -77,7 +77,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           setNotice("الحساب أُنشئ لكن Supabase ما زال يطلب تأكيد البريد. عطّل Confirm email من إعدادات Authentication في Supabase ثم جرّب التسجيل.");
         } else {
           setSession(data.session);
-          await supabase.from("profiles").update({ username: username.trim().toLowerCase(), date_of_birth: birthDate.trim(), is_private: isPrivate }).eq("id", data.user!.id);
+          await supabase.from("profiles").update({ username: username.trim().toLowerCase(), is_private: isPrivate }).eq("id", data.user!.id);
+          await supabase.from("account_private_details").upsert({ user_id: data.user!.id, date_of_birth: birthDate.trim() });
           setNeedsInterests(true);
         }
       } else {
