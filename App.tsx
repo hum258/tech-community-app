@@ -51,21 +51,22 @@ export default function App() {
   const [posts, setPosts] = useState(initialPosts);
   const [composerOpen, setComposerOpen] = useState(false);
   const [draft, setDraft] = useState("");
-  const [commentingPost, setCommentingPost] = useState<number | null>(null);
+  const [commentingPost, setCommentingPost] = useState<string | number | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
   const [postComments, setPostComments] = useState<Record<string, string[]>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [feedNotice, setFeedNotice] = useState("");
 
   useEffect(() => {
-    if (!supabase) return;
+    const client = supabase;
+    if (!client) return;
     let alive = true;
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await client.auth.getSession();
       if (!alive) return;
       setCurrentUserId(session?.user.id ?? null);
       if (!session) return;
-      const { data, error } = await supabase.from("posts").select("id,title,body,category,tags,created_at,author_id,profiles(display_name,specialty,account_type)").order("created_at", { ascending: false }).limit(50);
+      const { data, error } = await client.from("posts").select("id,title,body,category,tags,created_at,author_id,profiles(display_name,specialty,account_type)").order("created_at", { ascending: false }).limit(50);
       if (error) { setFeedNotice("تعذر تحميل المنشورات من قاعدة البيانات. تأكد من تشغيل ترحيل 0003."); return; }
       if (data && alive) {
         const rows: Post[] = data.map((p: any) => ({ id:p.id, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], likes:0, comments:0, icon:"account-outline", color:"#38BDF8" }));
@@ -73,10 +74,10 @@ export default function App() {
         const ids=rows.map(p=>p.id);
         if(ids.length){
           const [{data: likes},{data: comments},{data: mine},{data:saves}] = await Promise.all([
-            supabase.from("post_likes").select("post_id").in("post_id",ids),
-            supabase.from("comments").select("post_id").in("post_id",ids),
-            supabase.from("post_likes").select("post_id").eq("user_id",session.user.id).in("post_id",ids),
-            supabase.from("post_saves").select("post_id").eq("user_id",session.user.id).in("post_id",ids)
+            client.from("post_likes").select("post_id").in("post_id",ids),
+            client.from("comments").select("post_id").in("post_id",ids),
+            client.from("post_likes").select("post_id").eq("user_id",session.user.id).in("post_id",ids),
+            client.from("post_saves").select("post_id").eq("user_id",session.user.id).in("post_id",ids)
           ]);
           setPosts(old=>old.map(p=>({...p,likes:(likes||[]).filter((x:any)=>x.post_id===p.id).length,comments:(comments||[]).filter((x:any)=>x.post_id===p.id).length})));
           setLiked((mine||[]).map((x:any)=>x.post_id)); setSaved((saves||[]).map((x:any)=>x.post_id));
@@ -85,7 +86,7 @@ export default function App() {
       }
     };
     load();
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session)=>{setCurrentUserId(session?.user.id ?? null); if(session) load();});
+    const { data: listener } = client.auth.onAuthStateChange((_event, session)=>{setCurrentUserId(session?.user.id ?? null); if(session) load();});
     return ()=>{alive=false;listener.subscription.unsubscribe();};
   }, []);
 
