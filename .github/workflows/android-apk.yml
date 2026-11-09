@@ -30,22 +30,50 @@ jobs:
         run: npm install
 
       - name: Generate Android project
-        run: npx expo prebuild --platform android --non-interactive
+        env:
+          CI: "1"
+        run: npx expo prebuild --platform android
 
       - name: Diagnose Expo autolinking metadata
         run: |
           npx expo-modules-autolinking resolve --platform android --json > expo-autolinking.json
-          node -e "const x=require('./expo-autolinking.json'); for (const [i,m] of x.modules.entries()) console.log(JSON.stringify({index:i,packageName:m.packageName,packageVersion:m.packageVersion,projects:m.projects},null,2))"
+          node <<'NODE'
+          const fs = require('fs');
+          const data = JSON.parse(fs.readFileSync('expo-autolinking.json', 'utf8'));
+          const modules = data.modules || [];
+          const report = modules.map((m, index) => ({
+            index,
+            packageName: m.packageName,
+            packageVersion: m.packageVersion,
+            projects: m.projects
+          }));
+          console.log(JSON.stringify(report, null, 2));
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            '## Expo autolinking modules\\n\\n`' +
+            report.map(m => `${m.index}: ${m.packageName || 'unknown'}@${m.packageVersion || 'no-version'}`).join('`\\n`') +
+            '`\\n');
+          NODE
 
       - name: Build APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --stacktrace
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: tech-community-apk
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-diagnostics
+          path: |
+            expo-autolinking.json
+            android/settings.gradle
+          if-no-files-found: warn
