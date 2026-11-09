@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "./lib/supabase";
@@ -170,7 +170,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
       {!profile?<ActivityIndicator color={C.blue}/>:<>
         <View style={s.profileCard}>
           <Pressable onPress={chooseAvatar} disabled={busy} style={s.avatarPress}>
-            {profile.avatar_url?<View style={s.avatarImage}><Text style={{color:C.blue,fontSize:12,fontWeight:"800"}}> </Text></View>:<View style={s.avatar}><MaterialCommunityIcons name={profile.account_type==="company"?"domain":"account"} size={31} color={C.blue}/></View>}
+            {profile.avatar_url?<Image source={{uri:profile.avatar_url}} style={s.avatarImage} />:<View style={s.avatar}><MaterialCommunityIcons name={profile.account_type==="company"?"domain":"account"} size={31} color={C.blue}/></View>}
             <View style={s.cameraBadge}><MaterialCommunityIcons name="camera" size={14} color="#FFFFFF"/></View>
           </Pressable>
           <Pressable onPress={chooseAvatar}><Text style={s.changePhoto}>{ar?"تغيير الصورة الشخصية":"Change profile photo"}</Text></Pressable>
