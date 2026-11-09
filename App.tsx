@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput,
-  I18nManager, StatusBar, Platform, Share
+  View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image,
+  StatusBar, Share
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import SecondaryScreen from "./src/SecondaryScreen";
+import AuthGate from "./src/AuthGate";
+import * as ImagePicker from "expo-image-picker";
 import { supabase } from "./src/lib/supabase";
 
 type Post = {
@@ -15,42 +17,19 @@ type Post = {
   icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string;
 };
 
-const initialPosts: Post[] = [
-  {
-    id: 1, name: "سارة أحمد", role: "مهندسة أمن سيبراني", time: "منذ 12 دقيقة",
-    category: "الأمن السيبراني", title: "كيف تبدأ في تحليل الروابط المشبوهة؟",
-    body: "جمعت مجموعة خطوات أساسية تساعد المبتدئين على فحص الروابط وفهم المؤشرات التي تستحق الانتباه، دون فتح الرابط مباشرة.",
-    tags: ["CyberSecurity", "SOC", "Beginner"], likes: 128, comments: 24,
-    icon: "shield-check-outline", color: "#36B9E9"
-  },
-  {
-    id: 2, name: "عمر خالد", role: "مطور تطبيقات", time: "منذ 38 دقيقة",
-    category: "البرمجة", title: "شاركوني رأيكم في مشروع React Native",
-    body: "أعمل على تطبيق متعدد المنصات وأبحث عن أفضل طريقة لتنظيم المكونات وإدارة الحالة مع نمو المشروع.",
-    tags: ["ReactNative", "MobileDev"], likes: 86, comments: 17,
-    icon: "code-tags", color: "#A78BFA"
-  },
-  {
-    id: 3, name: "ليان محمود", role: "مهتمة بالذكاء الاصطناعي", time: "منذ ساعة",
-    category: "الذكاء الاصطناعي", title: "مصادر عربية لتعلم أساسيات الذكاء الاصطناعي",
-    body: "ما أفضل المصادر العملية التي تنصحون بها لمن يريد بناء أساس قوي في تعلم الآلة وفهم النماذج؟",
-    tags: ["AI", "MachineLearning"], likes: 64, comments: 12,
-    icon: "brain", color: "#F4B860"
-  }
-];
-
 const categories = ["الكل", "البرمجة", "الأمن السيبراني", "الذكاء الاصطناعي", "الشبكات"];
 
-export default function App() {
+function CommunityApp() {
   const [language, setLanguage] = useState<"ar" | "en">("ar");
   const [activeTab, setActiveTab] = useState("home");
   const [activeCategory, setActiveCategory] = useState("الكل");
   const [query, setQuery] = useState("");
   const [liked, setLiked] = useState<Array<string | number>>([]);
   const [saved, setSaved] = useState<Array<string | number>>([]);
-  const [posts, setPosts] = useState(initialPosts);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [composerOpen, setComposerOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [commentingPost, setCommentingPost] = useState<string | number | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
   const [postComments, setPostComments] = useState<Record<string, string[]>>({});
@@ -66,10 +45,10 @@ export default function App() {
       if (!alive) return;
       setCurrentUserId(session?.user.id ?? null);
       if (!session) return;
-      const { data, error } = await client.from("posts").select("id,title,body,category,tags,created_at,author_id,profiles(display_name,specialty,account_type)").order("created_at", { ascending: false }).limit(50);
+      const { data, error } = await client.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,profiles(display_name,specialty,account_type)").order("created_at", { ascending: false }).limit(50);
       if (error) { setFeedNotice("تعذر تحميل المنشورات من قاعدة البيانات. تأكد من تشغيل ترحيل 0003."); return; }
       if (data && alive) {
-        const rows: Post[] = data.map((p: any) => ({ id:p.id, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], likes:0, comments:0, icon:"account-outline", color:"#38BDF8" }));
+        const rows: Post[] = data.map((p: any) => ({ id:p.id, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], imageUrl:p.image_url, likes:0, comments:0, icon:"account-outline", color:"#1D9BF0" }));
         setPosts(rows);
         const ids=rows.map(p=>p.id);
         if(ids.length){
@@ -124,21 +103,32 @@ export default function App() {
     if(result.error){setSaved(old=>exists?[...old,id]:old.filter(x=>x!==id));setFeedNotice(result.error.message);}
   };
   const publish = async () => {
-    if (!draft.trim()) return;
+    if (!draft.trim() && !selectedImage) return;
     if (!supabase || !currentUserId) { setFeedNotice("أنشئ حساباً وسجّل الدخول قبل النشر."); return; }
-    const {error}=await supabase.from("posts").insert({author_id:currentUserId,category:"البرمجة",title:draft.trim(),body:"",tags:["Community"]});
+    let imageUrl: string | null = null;
+    if (selectedImage) {
+      const response = await fetch(selectedImage);
+      const bytes = await response.arrayBuffer();
+      const ext = selectedImage.split(".").pop()?.split("?")[0] || "jpg";
+      const path = currentUserId + "/" + Date.now() + "." + ext;
+      const uploaded = await supabase.storage.from("post-images").upload(path, bytes, { contentType: ext === "png" ? "image/png" : "image/jpeg" });
+      if (uploaded.error) { setFeedNotice("تعذر رفع الصورة: " + uploaded.error.message); return; }
+      imageUrl = supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
+    }
+    const content = draft.trim();
+    const {error}=await supabase.from("posts").insert({author_id:currentUserId,category:"عام",title:content.slice(0,80) || "صورة",body:content,tags:[],image_url:imageUrl});
     if(error){setFeedNotice("تعذر نشر المنشور: "+error.message);return;}
-    setDraft(""); setComposerOpen(false);
-    const {data}=await supabase.from("posts").select("id,title,body,category,tags,created_at,profiles(display_name,specialty)").order("created_at",{ascending:false}).limit(50);
-    if(data)setPosts(data.map((p:any)=>({id:p.id,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],likes:0,comments:0,icon:"account-outline",color:"#38BDF8"})));
+    setDraft(""); setSelectedImage(null); setComposerOpen(false);
+    const {data}=await supabase.from("posts").select("id,title,body,category,tags,image_url,created_at,profiles(display_name,specialty)").order("created_at",{ascending:false}).limit(50);
+    if(data)setPosts(data.map((p:any)=>({id:p.id,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],imageUrl:p.image_url,likes:0,comments:0,icon:"account-outline",color:"#1D9BF0"})));
     setFeedNotice("");
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ExpoStatusBar style="light" />
-      <StatusBar barStyle="light-content" backgroundColor="#071426" />
-      <View style={styles.app}>
+    <SafeAreaView style={[styles.safe,{backgroundColor:"#FFFFFF"}]}>
+      <ExpoStatusBar style="dark" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <View style={[styles.app,{backgroundColor:"#FFFFFF"}]}>
         <View style={styles.topBar}>
           <View style={styles.brandWrap}>
             <View style={styles.brandMark}><MaterialCommunityIcons name="code-braces" size={22} color="#071426" /></View>
@@ -168,7 +158,7 @@ export default function App() {
             </View>
             <Text style={[styles.heroTitle, isArabic && styles.rtl]}>{labels.greeting}</Text>
             <Text style={[styles.heroSubtitle, isArabic && styles.rtl]}>{labels.subtitle}</Text>
-            <View style={styles.heroStats}>
+            <View style={[styles.heroStats,{display:"none"}]}>
               <View><Text style={styles.statNumber}>12K+</Text><Text style={styles.statLabel}>{isArabic?"عضو تقني":"Members"}</Text></View>
               <View style={styles.statDivider}/>
               <View><Text style={styles.statNumber}>850+</Text><Text style={styles.statLabel}>{isArabic?"مشروع":"Projects"}</Text></View>
@@ -185,7 +175,7 @@ export default function App() {
 
           {!!feedNotice && <Text style={{color:"#F4B860",fontSize:11,marginTop:10}}>{feedNotice}</Text>}
           <View style={styles.sectionHeading}>
-            <View><Text style={[styles.sectionTitle, isArabic && styles.rtl]}>{labels.feed}</Text><Text style={[styles.sectionHint, isArabic && styles.rtl]}>{labels.demo}</Text></View>
+            <View><Text style={[styles.sectionTitle, isArabic && styles.rtl]}>{labels.feed}</Text></View>
             <Pressable style={styles.writeButton} onPress={()=>setComposerOpen(true)}>
               <MaterialCommunityIcons name="plus" size={18} color="#071426" />
               <Text style={styles.writeText}>{isArabic?"منشور":"Post"}</Text>
@@ -226,7 +216,7 @@ export default function App() {
               <View style={styles.postCategory}><Text style={styles.categoryText}>{post.category}</Text></View>
               <Text style={[styles.postTitle, isArabic && styles.rtl]}>{post.title}</Text>
               <Text style={[styles.postBody, isArabic && styles.rtl]}>{post.body}</Text>
-              <View style={styles.tags}>{post.tags.map(tag=><View key={tag} style={styles.tag}><Text style={styles.tagText}>#{tag}</Text></View>)}</View>
+              {post.imageUrl ? <Image source={{uri:post.imageUrl}} style={{width:"100%",height:230,borderRadius:14,marginTop:12}} resizeMode="cover"/> : null}<View style={styles.tags}>{post.tags.map(tag=><View key={tag} style={styles.tag}><Text style={styles.tagText}>#{tag}</Text></View>)}</View>
               <View style={styles.postDivider}/>
               <View style={styles.postActions}>
                 <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#8EA5BD"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{post.likes+(isLiked?1:0)}</Text></Pressable>
@@ -343,3 +333,5 @@ const styles = StyleSheet.create({
   navLabelActive:{color:"#78D3F6",fontWeight:"900"},
   rtl:{textAlign:"right",writingDirection:"rtl"}
 });
+
+export default function App() { return <AuthGate><CommunityApp /></AuthGate>; }
