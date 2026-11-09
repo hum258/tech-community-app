@@ -171,7 +171,7 @@ export default function App() {
               <View style={styles.postHeader}>
                 <View style={[styles.avatar,{backgroundColor:post.color+"22",borderColor:post.color+"66"}]}><MaterialCommunityIcons name={post.icon} size={23} color={post.color}/></View>
                 <View style={styles.authorInfo}>
-                  <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text><MaterialCommunityIcons name="check-decagram" size={14} color="#43BCEB"/></View>
+                  <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text><MaterialCommunityIcons name="account-circle-outline" size={14} color="#7891AB"/></View>
                   <Text style={styles.authorRole}>{post.role} · {post.time}</Text>
                 </View>
                 <Pressable style={styles.moreButton}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#8EA5BD"/></Pressable>
