@@ -50,6 +50,9 @@ export default function App() {
   const [posts, setPosts] = useState(initialPosts);
   const [composerOpen, setComposerOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  const [commentingPost, setCommentingPost] = useState<number | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [postComments, setPostComments] = useState<Record<number, string[]>>({});
 
   const isArabic = language === "ar";
   const visiblePosts = useMemo(() => posts.filter(post => {
@@ -180,10 +183,17 @@ export default function App() {
               <View style={styles.postDivider}/>
               <View style={styles.postActions}>
                 <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#8EA5BD"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{post.likes+(isLiked?1:0)}</Text></Pressable>
-                <Pressable style={styles.action}><MaterialCommunityIcons name="comment-outline" size={19} color="#8EA5BD"/><Text style={styles.actionText}>{post.comments}</Text></Pressable>
+                <Pressable style={styles.action} onPress={()=>{setCommentingPost(commentingPost===post.id?null:post.id);setCommentDraft("");}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#69C9F3":"#8EA5BD"}/><Text style={styles.actionText}>{post.comments+(postComments[post.id]?.length||0)}</Text></Pressable>
                 <Pressable style={styles.action}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#8EA5BD"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
                 <Pressable style={styles.saveAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#69C9F3":"#8EA5BD"}/></Pressable>
               </View>
+              {commentingPost===post.id && <View style={styles.commentPanel}>
+                {(postComments[post.id]||[]).map((comment,index)=><View key={index} style={styles.commentBubble}><Text style={styles.commentAuthor}>{isArabic?"أنت":"You"}</Text><Text style={[styles.commentBody,isArabic&&styles.rtl]}>{comment}</Text></View>)}
+                <View style={styles.commentComposer}>
+                  <TextInput value={commentDraft} onChangeText={setCommentDraft} placeholder={isArabic?"اكتب تعليقاً...":"Write a comment..."} placeholderTextColor="#7188A2" style={[styles.commentInput,isArabic&&styles.rtl]}/>
+                  <Pressable onPress={()=>{if(commentDraft.trim()){setPostComments(old=>({...old,[post.id]:[...(old[post.id]||[]),commentDraft.trim()]}));setCommentDraft("");}}} style={styles.commentSend}><MaterialCommunityIcons name="send" size={17} color="#071426"/></Pressable>
+                </View>
+              </View>}
             </View>;
           })}
           <View style={styles.bottomSpace}/>
@@ -261,6 +271,13 @@ const styles = StyleSheet.create({
   actionText:{color:"#8EA5BD",fontSize:11},
   likedText:{color:"#F07891"},
   saveAction:{marginLeft:"auto",padding:3},
+  commentPanel:{marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:"#1B344D"},
+  commentBubble:{backgroundColor:"#102A40",borderRadius:10,padding:9,marginBottom:7},
+  commentAuthor:{color:"#78CBEF",fontSize:10,fontWeight:"800",marginBottom:3},
+  commentBody:{color:"#C0D2E1",fontSize:11,lineHeight:17},
+  commentComposer:{flexDirection:"row",alignItems:"center",gap:8,marginTop:5},
+  commentInput:{flex:1,minHeight:40,maxHeight:80,backgroundColor:"#091A2B",borderWidth:1,borderColor:"#25425E",borderRadius:10,paddingHorizontal:10,color:"#EAF5FF",fontSize:11},
+  commentSend:{width:39,height:39,borderRadius:11,backgroundColor:"#69C9F3",alignItems:"center",justifyContent:"center"},
   composer:{backgroundColor:"#102943",borderWidth:1,borderColor:"#2B6384",borderRadius:17,padding:14,marginBottom:14},
   composerTitle:{color:"#EAF5FF",fontWeight:"800",fontSize:14,marginBottom:10,textAlign:"left"},
   composerInput:{minHeight:90,color:"#EAF5FF",fontSize:13,textAlign:"left",textAlignVertical:"top",backgroundColor:"#0A1B2D",borderRadius:12,padding:12},
