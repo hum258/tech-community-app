@@ -30,6 +30,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
   const [followersCount,setFollowersCount]=useState(0);
   const [followingCount,setFollowingCount]=useState(0);
   const [conversations,setConversations]=useState<Conversation[]>([]);
+  const [people,setPeople]=useState<any[]>([]);
+  const [followingIds,setFollowingIds]=useState<string[]>([]);
   const [targetUsername,setTargetUsername]=useState("");
   const [activeConversation,setActiveConversation]=useState<string|null>(null);
   const [activePeer,setActivePeer]=useState("");
@@ -59,6 +61,33 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     if(user){const {data:members}=await supabase.from("community_members").select("community_id").eq("user_id",user.id);setJoined((members||[]).map((m:any)=>m.community_id));}
   },[]);
 
+  const loadPeople=useCallback(async()=>{
+    if(!supabase)return;
+    const {data:{user}}=await supabase.auth.getUser();
+    if(!user)return;
+    const term=query.trim().replace(/[%,]/g,"");
+    let request=supabase.from("profiles").select("id,display_name,username,bio,specialty,avatar_url,account_type,is_verified").eq("is_private",false).neq("id",user.id).order("created_at",{ascending:false}).limit(30);
+    if(term) request=request.or("username.ilike.%"+term+"%,display_name.ilike.%"+term+"%,specialty.ilike.%"+term+"%");
+    const [{data:rows},{data:following}]=await Promise.all([
+      request,
+      supabase.from("profile_follows").select("following_id").eq("follower_id",user.id)
+    ]);
+    setPeople(rows||[]);
+    setFollowingIds((following||[]).map((x:any)=>x.following_id));
+  },[query]);
+
+  const toggleFollow=async(targetId:string)=>{
+    if(!supabase||!userId||targetId===userId)return;
+    const exists=followingIds.includes(targetId);
+    setBusy(true);
+    const result=exists
+      ? await supabase.from("profile_follows").delete().eq("follower_id",userId).eq("following_id",targetId)
+      : await supabase.from("profile_follows").insert({follower_id:userId,following_id:targetId});
+    setBusy(false);
+    if(result.error){showNotice(result.error.message);return;}
+    setFollowingIds(old=>exists?old.filter(x=>x!==targetId):[...old,targetId]);
+  };
+
   const loadMessages=useCallback(async()=>{
     if(!supabase)return;
     const {data:{user}}=await supabase.auth.getUser();if(!user)return;
@@ -73,7 +102,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     setConversations(mapped);
   },[]);
 
-  useEffect(()=>{if(tab==="profile")loadProfile();if(tab==="groups")loadGroups();if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages]);
+  useEffect(()=>{if(tab==="profile")loadProfile();if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
 
   const showNotice=(v:string)=>setNotice(v);
   const saveProfile=async()=>{
@@ -157,6 +186,18 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
 
     {tab==="explore"&&<>
       <TextInput value={query} onChangeText={setQuery} placeholder={ar?"ابحث عن مجتمعات وتخصصات...":"Search communities and topics..."} placeholderTextColor="#9AA8B2" style={[s.input,ar&&s.rtl]}/>
+      <Text style={[s.section,ar&&s.rtl]}>{ar?"الأشخاص":"People"}</Text>
+      {people.map(person=><View key={person.id} style={s.personCard}>
+        {person.avatar_url?<Image source={{uri:person.avatar_url}} style={s.personAvatar}/>:<View style={s.personAvatarFallback}><MaterialCommunityIcons name={person.account_type==="company"?"domain":"account"} size={22} color={C.blue}/></View>}
+        <View style={{flex:1}}>
+          <View style={{flexDirection:"row",alignItems:"center",gap:4}}><Text style={s.cardTitle}>{person.display_name||person.username}</Text>{person.is_verified&&<MaterialCommunityIcons name="check-decagram" size={16} color={person.account_type==="company"?"#89939D":C.blue}/>}</View>
+          <Text style={s.detail}>@{person.username}</Text>
+          {!!person.specialty&&<Text style={s.detail}>{person.specialty}</Text>}
+        </View>
+        <Pressable disabled={busy} onPress={()=>toggleFollow(person.id)} style={[s.smallButton,followingIds.includes(person.id)&&s.secondaryButton]}><Text style={[s.smallButtonText,followingIds.includes(person.id)&&s.secondaryButtonText]}>{followingIds.includes(person.id)?(ar?"تتابعه":"Following"):(ar?"متابعة":"Follow")}</Text></Pressable>
+      </View>)}
+      {!people.length&&<Text style={s.empty}>{ar?"لا يوجد أشخاص مطابقون حالياً.":"No people found."}</Text>}
+      <Text style={[s.section,ar&&s.rtl]}>{ar?"المجتمعات":"Communities"}</Text>
       {communities.filter(x=>(x.name+" "+x.description+" "+x.specialty).toLowerCase().includes(query.toLowerCase())).map(x=><View key={x.id} style={s.card}><Text style={s.cardTitle}>{x.name}</Text><Text style={s.detail}>{x.description}</Text><Text style={s.tag}>{x.specialty}</Text></View>)}
       <Button label={ar?"عرض المجتمعات":"View communities"} onPress={onBackHome}/>
     </>}
@@ -201,7 +242,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
 
 const s=StyleSheet.create({
  wrap:{paddingTop:12,paddingBottom:26},eyebrow:{color:C.blue,fontSize:9,fontWeight:"900",letterSpacing:1.4,marginBottom:7},title:{color:C.ink,fontSize:22,fontWeight:"900",marginBottom:16},
- card:{backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:16,padding:14,marginTop:11},cardTitle:{color:C.ink,fontSize:14,fontWeight:"800"},detail:{color:C.muted,fontSize:11,lineHeight:18,marginTop:5},label:{color:C.ink,fontSize:11,fontWeight:"800",marginBottom:7,marginTop:12},
+ card:{backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:16,padding:14,marginTop:11},personCard:{backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:14,padding:10,marginTop:9,flexDirection:"row",alignItems:"center",gap:10},personAvatar:{width:44,height:44,borderRadius:22,backgroundColor:C.pale},personAvatarFallback:{width:44,height:44,borderRadius:22,backgroundColor:"#E8F5FD",alignItems:"center",justifyContent:"center"},cardTitle:{color:C.ink,fontSize:14,fontWeight:"800"},detail:{color:C.muted,fontSize:11,lineHeight:18,marginTop:5},label:{color:C.ink,fontSize:11,fontWeight:"800",marginBottom:7,marginTop:12},
  input:{minHeight:45,backgroundColor:C.white,borderWidth:1,borderColor:"#CFD9DE",borderRadius:12,paddingHorizontal:12,color:C.ink,fontSize:12,marginTop:8},button:{height:44,backgroundColor:C.blue,borderRadius:12,alignItems:"center",justifyContent:"center",marginTop:13},buttonText:{color:C.white,fontSize:12,fontWeight:"900"},
  notice:{backgroundColor:"#EFF8FE",borderColor:"#C8E7FA",borderWidth:1,borderRadius:12,padding:11,marginBottom:10,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},noticeText:{color:C.ink,fontSize:11,flex:1,lineHeight:18},
  cardFoot:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},tag:{color:"#1876B8",backgroundColor:"#E8F5FD",overflow:"hidden",borderRadius:9,paddingHorizontal:9,paddingVertical:5,fontSize:10,alignSelf:"flex-start",marginTop:8},smallButton:{backgroundColor:C.blue,borderRadius:10,paddingHorizontal:15,paddingVertical:8},smallButtonText:{color:C.white,fontWeight:"800",fontSize:11},secondaryButton:{backgroundColor:C.pale,borderWidth:1,borderColor:C.line},secondaryButtonText:{color:C.muted},profileCard:{alignItems:"center",backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:18,padding:20,marginBottom:12},avatarPress:{position:"relative"},avatarImage:{width:82,height:82,borderRadius:41,backgroundColor:"#E8F5FD",overflow:"hidden"},cameraBadge:{position:"absolute",right:-2,bottom:4,width:25,height:25,borderRadius:13,backgroundColor:C.blue,alignItems:"center",justifyContent:"center",borderWidth:2,borderColor:C.white},changePhoto:{color:C.blue,fontSize:11,fontWeight:"800",marginTop:7,marginBottom:9},statsRow:{flexDirection:"row",justifyContent:"space-around",width:"100%",marginTop:17,paddingTop:13,borderTopWidth:1,borderBottomWidth:1,borderColor:C.line,paddingBottom:13},stat:{alignItems:"center",minWidth:70},statNum:{fontSize:17,fontWeight:"900",color:C.ink},statLabel:{fontSize:10,color:C.muted,marginTop:3},bio:{fontSize:12,color:C.ink,marginTop:8,textAlign:"center"},verifyRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginTop:15},verifyText:{fontSize:12,color:C.ink,fontWeight:"800"},toggle:{width:48,height:28,borderRadius:14,backgroundColor:"#CBD2D9",padding:3,justifyContent:"center"},toggleOn:{backgroundColor:C.blue},toggleKnob:{width:22,height:22,borderRadius:11,backgroundColor:"#FFFFFF"},toggleKnobOn:{alignSelf:"flex-end"},avatar:{width:66,height:66,borderRadius:22,backgroundColor:"#E8F5FD",alignItems:"center",justifyContent:"center",marginBottom:10},profileName:{fontSize:17,color:C.ink,fontWeight:"900"},tags:{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:10},status:{color:C.blue,fontWeight:"900",fontSize:12,marginTop:9},hint:{fontSize:10,color:C.muted,lineHeight:17,marginTop:12},row:{flexDirection:"row",gap:8},choice:{flex:1,borderWidth:1,borderColor:C.line,borderRadius:10,padding:10,alignItems:"center"},choiceOn:{borderColor:C.blue,backgroundColor:"#E8F5FD"},choiceText:{color:C.ink,fontWeight:"700",fontSize:11},signout:{backgroundColor:"#FCE8EA",borderRadius:11,padding:12,alignItems:"center",marginTop:12},signoutText:{color:C.red,fontWeight:"900",fontSize:12},section:{color:C.ink,fontSize:14,fontWeight:"900",marginTop:22,marginBottom:5},empty:{textAlign:"center",color:C.muted,padding:30},messageList:{maxHeight:390,marginTop:12},bubble:{alignSelf:"flex-start",maxWidth:"85%",backgroundColor:C.pale,borderRadius:14,padding:11,marginVertical:5},myBubble:{alignSelf:"flex-end",backgroundColor:"#DFF1FD"},bubbleText:{color:C.ink,fontSize:12,lineHeight:18},myBubbleText:{color:"#13527D"},time:{color:C.muted,fontSize:9,marginTop:5},compose:{flexDirection:"row",alignItems:"center",gap:8,marginTop:10},composeInput:{flex:1,minHeight:44,borderWidth:1,borderColor:C.line,borderRadius:12,paddingHorizontal:12,color:C.ink},send:{width:44,height:44,borderRadius:12,backgroundColor:C.blue,alignItems:"center",justifyContent:"center"},back:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:7,marginTop:18,padding:10},backText:{color:C.blue,fontSize:12,fontWeight:"800"},rtl:{textAlign:"right",writingDirection:"rtl"}
