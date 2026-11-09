@@ -60,6 +60,21 @@ export default function SecondaryScreen({ tab, isArabic, onBackHome }: Props) {
           <View style={s.profileCard}><View style={s.profileAvatar}><MaterialCommunityIcons name="account" size={36} color={palette.cyan}/></View><Text style={s.profileName}>{ar ? "ملفك التقني" : "Your tech profile"}</Text><Text style={s.detail}>{ar ? "أنشئ حسابك وابدأ ببناء هويتك التقنية." : "Create your account and start building your tech identity."}</Text><Pressable style={s.join} onPress={() => { setRegistering(true); setRegistrationNotice(""); }}><Text style={s.joinText}>{ar ? "إنشاء حساب جديد" : "Create an account"}</Text></Pressable></View>
           <View style={s.rowCard}><MaterialCommunityIcons name="folder-outline" size={21} color={palette.cyan}/><Text style={[s.cardTitle, s.flex, ar && s.rtl]}>{ar ? "معرض المشاريع" : "Project portfolio"}</Text><MaterialCommunityIcons name="chevron-right" size={20} color={palette.muted}/></View>
           <View style={s.rowCard}><MaterialCommunityIcons name="cog-outline" size={21} color={palette.cyan}/><Text style={[s.cardTitle, s.flex, ar && s.rtl]}>{ar ? "الإعدادات والخصوصية" : "Settings & privacy"}</Text><MaterialCommunityIcons name="chevron-right" size={20} color={palette.muted}/></View>
+          <View style={s.verifyCard}>
+            <Text style={[s.verifyTitle, ar && s.rtl]}>{ar ? "التوثيق المجاني" : "Free verification"}</Text>
+            <Text style={[s.detail, ar && s.rtl]}>{ar ? "شارة التوثيق مجانية للحسابات الشخصية والشركات." : "Verification badges are free for personal and company accounts."}</Text>
+            <View style={s.verifyRow}>
+              <MaterialCommunityIcons name="check-decagram" size={22} color="#35AFFF"/>
+              <View style={s.flex}><Text style={s.verifyName}>{ar ? "الحسابات الشخصية" : "Personal accounts"}</Text><Text style={s.verifyDetail}>{ar ? "شارة زرقاء" : "Blue badge"}</Text></View>
+              <Text style={s.freeLabel}>{ar ? "مجاني" : "FREE"}</Text>
+            </View>
+            <View style={s.verifyRow}>
+              <MaterialCommunityIcons name="check-decagram" size={22} color="#B8C3D0"/>
+              <View style={s.flex}><Text style={s.verifyName}>{ar ? "الشركات والمؤسسات" : "Companies & organizations"}</Text><Text style={s.verifyDetail}>{ar ? "شارة فضية" : "Silver badge"}</Text></View>
+              <Text style={s.freeLabel}>{ar ? "مجاني" : "FREE"}</Text>
+            </View>
+            <Text style={[s.verifyFoot, ar && s.rtl]}>{ar ? "هذه معاينة لتصميم الشارات؛ منح التوثيق الفعلي سيتم بعد مراجعة الحسابات من لوحة الإدارة." : "Badge design preview. Actual verification will be granted after account review in the admin dashboard."}</Text>
+          </View>
         </> : <>
           <View style={s.formCard}>
             <Text style={[s.formHeading, ar && s.rtl]}>{ar ? "أنشئ حسابك" : "Create your account"}</Text>
@@ -124,6 +139,13 @@ const s = StyleSheet.create({
   empty:{alignItems:"center",paddingVertical:55,gap:8},
   emptyTitle:{color:palette.text,fontSize:15,fontWeight:"800"},
   profileCard:{alignItems:"center",backgroundColor:palette.panel,borderWidth:1,borderColor:palette.border,borderRadius:18,padding:22,marginBottom:12},
+  verifyCard:{backgroundColor:"#0D1F32",borderWidth:1,borderColor:"#29445D",borderRadius:16,padding:14,marginTop:5,marginBottom:12},
+  verifyTitle:{color:palette.text,fontSize:14,fontWeight:"900"},
+  verifyRow:{flexDirection:"row",alignItems:"center",gap:10,backgroundColor:"#102943",padding:11,borderRadius:12,marginTop:10},
+  verifyName:{color:palette.text,fontSize:11,fontWeight:"800"},
+  verifyDetail:{color:palette.muted,fontSize:10,marginTop:3},
+  freeLabel:{color:"#83DDBB",fontSize:9,fontWeight:"900"},
+  verifyFoot:{color:"#718BA4",fontSize:9,lineHeight:15,marginTop:10},
   formCard:{backgroundColor:palette.panel,borderWidth:1,borderColor:palette.border,borderRadius:18,padding:16},
   formHeading:{color:palette.text,fontSize:18,fontWeight:"900",marginBottom:5},
   fieldLabel:{color:"#78CBEF",fontSize:9,fontWeight:"900",letterSpacing:1,marginTop:17,marginBottom:8},
