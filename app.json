@@ -4,9 +4,9 @@
     "slug": "tech-community-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "splash": {
-      "backgroundColor": "#071426"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
@@ -15,8 +15,11 @@
     "android": {
       "package": "com.hum258.techcommunity",
       "adaptiveIcon": {
-        "backgroundColor": "#071426"
-      }
+        "backgroundColor": "#FFFFFF"
+      },
+      "navigationBarColor": "#FFFFFF",
+      "navigationBarDividerColor": "#E6ECF0",
+      "userInterfaceStyle": "light"
     },
     "assetBundlePatterns": [
       "**/*"
