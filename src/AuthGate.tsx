@@ -113,7 +113,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       }
     } catch (e: any) {
       const msg = String(e?.message || e);
-      setNotice(msg.includes("already registered") ? "هذا البريد مسجل مسبقاً. جرّب تسجيل الدخول." : msg.includes("duplicate key") ? "اسم المستخدم مستخدم مسبقاً." : "تعذر إكمال العملية: " + msg);
+      setNotice(msg.toLowerCase().includes("invalid login credentials") ? "البريد الإلكتروني أو كلمة المرور غير صحيحة. تأكد من كتابتهما أو استخدم رابط استعادة كلمة المرور." : msg.toLowerCase().includes("email not confirmed") ? "يجب تأكيد البريد الإلكتروني أولاً. افتح رسالة التأكيد ثم سجّل الدخول." : msg.includes("already registered") ? "هذا البريد مسجل مسبقاً. جرّب تسجيل الدخول." : msg.includes("duplicate key") ? "اسم المستخدم مستخدم مسبقاً." : "تعذر إكمال العملية: " + msg);
     } finally { setBusy(false); }
   };
 
