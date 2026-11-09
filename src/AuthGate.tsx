@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, StatusBar, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, StatusBar, ActivityIndicator, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { supabase } from "./lib/supabase";
@@ -17,6 +17,12 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  const [birthDay, setBirthDay] = useState("");
+  const [birthMonth, setBirthMonth] = useState("");
+  const [birthYear, setBirthYear] = useState("");
+  const [datePickerPart, setDatePickerPart] = useState<"day" | "month" | "year" | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -49,30 +55,32 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   const strongPassword = (value: string) => value.length >= 10 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /[0-9]/.test(value) && /[^A-Za-z0-9]/.test(value);
   const normalizeBirthDate = (raw: string): string | null => {
-    const value = raw.trim()
-      .replace(/[٠-٩]/g, d => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
-      .replace(/[۰-۹]/g, d => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
-      .replace(/[/.]/g, "-");
-    const match = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (!raw) return null;
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return null;
     const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
-    if (year < 1900 || month < 1 || month > 12 || day < 1) return null;
-    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-    if (day > daysInMonth) return null;
-    const normalized = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    if (year < 1900 || month < 1 || month > 12 || day < 1 || day > days) return null;
+    const normalized = String(year) + "-" + String(month).padStart(2,"0") + "-" + String(day).padStart(2,"0");
     const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const today = String(now.getFullYear()) + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0");
     return normalized < today ? normalized : null;
   };
+  const updateBirthDate = (day: string, month: string, year: string) => {
+    setBirthDay(day); setBirthMonth(month); setBirthYear(year);
+    setBirthDate(day && month && year ? year + "-" + month.padStart(2,"0") + "-" + day.padStart(2,"0") : "");
+  };
+  const daysInSelectedMonth = birthYear && birthMonth ? new Date(Number(birthYear), Number(birthMonth), 0).getDate() : 31;
+  const pickerOptions = datePickerPart === "year" ? Array.from({length:new Date().getFullYear()-1899},(_,i)=>String(new Date().getFullYear()-i)) : datePickerPart === "month" ? Array.from({length:12},(_,i)=>String(i+1)) : Array.from({length:daysInSelectedMonth},(_,i)=>String(i+1));
 
   const submit = async () => {
     if (!supabase) { setNotice("تعذر الاتصال بالخادم حالياً."); return; }
     setNotice("");
+    let normalizedBirthDate: string | null = null;
     if (mode === "signup") {
-      if (!name.trim() || !username.trim() || !email.trim() || !birthDate.trim()) { setNotice("أكمل جميع الحقول المطلوبة."); return; }
+      if (!name.trim() || !username.trim() || !email.trim()) { setNotice("أكمل الاسم واسم المستخدم والبريد الإلكتروني."); return; }
       if (!/^[a-zA-Z0-9_]{3,20}$/.test(username.trim())) { setNotice("اسم المستخدم يجب أن يكون 3–20 حرفاً إنجليزياً أو رقماً أو _ فقط."); return; }
-      const normalizedBirthDate = normalizeBirthDate(birthDate);
-      if (!normalizedBirthDate) { setNotice("تأكد من تاريخ الميلاد: السنة-الشهر-اليوم، مثال 2008-04-21. ويمكنك استخدام / بدل -."); return; }
+      if (birthDate) { normalizedBirthDate = normalizeBirthDate(birthDate); if (!normalizedBirthDate) { setNotice("اختر تاريخ ميلاد صحيحاً، أو اتركه فارغاً."); return; } }
       if (!strongPassword(password)) { setNotice("كلمة المرور ضعيفة. استخدم 10 خانات على الأقل مع حرف كبير وصغير ورقم ورمز."); return; }
       if (password !== confirmPassword) { setNotice("كلمتا المرور غير متطابقتين."); return; }
     } else if (!email.trim() || !password) { setNotice("أدخل البريد الإلكتروني وكلمة المرور."); return; }
@@ -82,7 +90,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
-          options: { data: { display_name: name.trim(), username: username.trim().toLowerCase(), date_of_birth: normalizedBirthDate, is_private: isPrivate, account_type: "personal" } }
+          options: { data: { display_name: name.trim(), username: username.trim().toLowerCase(), ...(normalizedBirthDate ? { date_of_birth: normalizedBirthDate } : {}), is_private: isPrivate, account_type: "personal" } }
         });
         if (error) throw error;
         if (!data.session) {
@@ -90,7 +98,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         } else {
           setSession(data.session);
           await supabase.from("profiles").update({ username: username.trim().toLowerCase(), is_private: isPrivate }).eq("id", data.user!.id);
-          await supabase.from("account_private_details").upsert({ user_id: data.user!.id, date_of_birth: normalizedBirthDate });
+          if (normalizedBirthDate) await supabase.from("account_private_details").upsert({ user_id: data.user!.id, date_of_birth: normalizedBirthDate });
           setNeedsInterests(true);
         }
       } else {
@@ -132,8 +140,13 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       {mode === "signup" && <>
         <Field label="الاسم" value={name} change={setName} placeholder="اسمك الكامل"/>
         <Field label="اسم المستخدم" value={username} change={setUsername} placeholder="username" autoCapitalize="none"/>
-        <Field label="تاريخ الميلاد" value={birthDate} change={setBirthDate} placeholder="YYYY-MM-DD"/>
-        <Text style={a.hint}>مثال: 2008-04-21</Text>
+        <Text style={a.label}>تاريخ الميلاد (اختياري)</Text>
+        <View style={a.dateRow}>
+          <Pressable style={a.dateChoice} onPress={() => setDatePickerPart("day")}><Text style={a.dateChoiceText}>{birthDay || "اليوم"}</Text><MaterialCommunityIcons name="chevron-down" size={18} color="#657786"/></Pressable>
+          <Pressable style={a.dateChoice} onPress={() => setDatePickerPart("month")}><Text style={a.dateChoiceText}>{birthMonth ? ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"][Number(birthMonth)-1] : "الشهر"}</Text><MaterialCommunityIcons name="chevron-down" size={18} color="#657786"/></Pressable>
+          <Pressable style={a.dateChoice} onPress={() => setDatePickerPart("year")}><Text style={a.dateChoiceText}>{birthYear || "السنة"}</Text><MaterialCommunityIcons name="chevron-down" size={18} color="#657786"/></Pressable>
+        </View>
+        {!!birthDate && <Pressable onPress={() => updateBirthDate("","","")}><Text style={a.clearDate}>مسح تاريخ الميلاد</Text></Pressable>}
         <Field label="البريد الإلكتروني" value={email} change={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none"/>
         <Text style={a.label}>خصوصية الحساب</Text>
         <View style={a.privacyRow}>
@@ -142,18 +155,29 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         </View>
       </>}
       {mode === "login" && <Field label="البريد الإلكتروني" value={email} change={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none"/>}
-      <Field label="كلمة المرور" value={password} change={setPassword} placeholder="كلمة مرور قوية" secure/>
-      {mode === "signup" && <><Field label="تأكيد كلمة المرور" value={confirmPassword} change={setConfirmPassword} placeholder="أعد كتابة كلمة المرور" secure/><Text style={a.hint}>10 خانات على الأقل، حرف كبير وصغير ورقم ورمز.</Text></>}
+      <Field label="كلمة المرور" value={password} change={setPassword} placeholder="كلمة مرور قوية" secure visible={showPassword} toggleVisible={() => setShowPassword(v => !v)}/>
+      {mode === "signup" && <><Field label="تأكيد كلمة المرور" value={confirmPassword} change={setConfirmPassword} placeholder="أعد كتابة كلمة المرور" secure visible={showConfirmPassword} toggleVisible={() => setShowConfirmPassword(v => !v)}/><Text style={a.hint}>10 خانات على الأقل، حرف كبير وصغير ورقم ورمز.</Text></>}
       {!!notice && <Text style={a.error}>{notice}</Text>}
       <Pressable style={[a.primary, busy && {opacity:0.6}]} onPress={submit} disabled={busy}><Text style={a.primaryText}>{busy ? "لحظة..." : mode === "signup" ? "إنشاء الحساب" : "تسجيل الدخول"}</Text></Pressable>
       <Pressable onPress={() => { setMode(mode === "signup" ? "login" : "signup"); setNotice(""); }}><Text style={a.switch}>{mode === "signup" ? "عندك حساب؟ سجّل الدخول" : "ما عندك حساب؟ أنشئ حساباً"}</Text></Pressable>
     </View>
     <Text style={a.legal}>Tech Community · Connect, learn and build</Text>
+    <Modal visible={!!datePickerPart} transparent animationType="slide" onRequestClose={() => setDatePickerPart(null)}>
+      <View style={a.modalBackdrop}><View style={a.dateModal}>
+        <View style={a.modalHeader}><Text style={a.modalTitle}>{datePickerPart === "day" ? "اختر اليوم" : datePickerPart === "month" ? "اختر الشهر" : "اختر السنة"}</Text><Pressable onPress={() => setDatePickerPart(null)}><MaterialCommunityIcons name="close" size={23} color="#33424F"/></Pressable></View>
+        <ScrollView style={a.optionsList}>{pickerOptions.map(option => <Pressable key={option} style={a.optionItem} onPress={() => {
+          if (datePickerPart === "day") updateBirthDate(option,birthMonth,birthYear);
+          if (datePickerPart === "month") updateBirthDate(birthDay && Number(birthDay) > new Date(Number(birthYear || new Date().getFullYear()),Number(option),0).getDate() ? "" : birthDay,option,birthYear);
+          if (datePickerPart === "year") updateBirthDate(birthDay,birthMonth,option);
+          setDatePickerPart(null);
+        }}><Text style={a.optionText}>{datePickerPart === "month" ? ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"][Number(option)-1] : option}</Text></Pressable>)}</ScrollView>
+      </View></View>
+    </Modal>
   </ScrollView></SafeAreaView>;
 }
 
 function Brand() { return <View style={a.brand}><View style={a.mark}><MaterialCommunityIcons name="orbit-variant" size={28} color="#FFFFFF"/></View><Text style={a.brandName}>Tech Community</Text><Text style={a.brandSub}>مساحة تجمع المهتمين بالتقنية</Text></View>; }
-function Field({label,value,change,placeholder,secure,keyboardType,autoCapitalize}:any) { return <><Text style={a.label}>{label}</Text><TextInput value={value} onChangeText={change} placeholder={placeholder} placeholderTextColor="#8B98A5" secureTextEntry={secure} keyboardType={keyboardType || "default"} autoCapitalize={autoCapitalize || "sentences"} style={a.input}/></>; }
+function Field({label,value,change,placeholder,secure,visible,toggleVisible,keyboardType,autoCapitalize}:any) { return <><Text style={a.label}>{label}</Text><View style={secure ? a.passwordWrap : undefined}><TextInput value={value} onChangeText={change} placeholder={placeholder} placeholderTextColor="#8B98A5" secureTextEntry={secure && !visible} keyboardType={keyboardType || "default"} autoCapitalize={autoCapitalize || "sentences"} style={[a.input,secure && a.passwordInput]}/>{secure && <Pressable style={a.eyeButton} onPress={toggleVisible}><MaterialCommunityIcons name={visible ? "eye-off-outline" : "eye-outline"} size={21} color="#657786"/></Pressable>}</View></>; }
 
 const a = StyleSheet.create({
  safe:{flex:1,backgroundColor:"#F5F8FA"},center:{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:"#F5F8FA"},
@@ -162,6 +186,9 @@ const a = StyleSheet.create({
  card:{backgroundColor:"#FFFFFF",borderRadius:22,padding:20,borderWidth:1,borderColor:"#E6ECF0"},
  title:{fontSize:22,fontWeight:"900",color:"#17202A",textAlign:"center",marginBottom:7},sub:{fontSize:13,color:"#657786",textAlign:"center",lineHeight:21,marginBottom:17},
  label:{fontSize:12,fontWeight:"800",color:"#33424F",marginTop:13,marginBottom:7},input:{height:48,borderWidth:1,borderColor:"#CFD9DE",borderRadius:12,paddingHorizontal:13,color:"#17202A",backgroundColor:"#FFFFFF",textAlign:"left"},hint:{fontSize:10,color:"#657786",marginTop:5},
+ dateRow:{flexDirection:"row",gap:7},dateChoice:{flex:1,height:48,borderWidth:1,borderColor:"#CFD9DE",borderRadius:12,backgroundColor:"#FFFFFF",paddingHorizontal:9,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},dateChoiceText:{fontSize:12,color:"#33424F"},clearDate:{fontSize:11,color:BLUE,marginTop:7,textAlign:"left"},
+ passwordWrap:{position:"relative",justifyContent:"center"},passwordInput:{paddingRight:48},eyeButton:{position:"absolute",right:13,height:48,justifyContent:"center"},
+ modalBackdrop:{flex:1,backgroundColor:"rgba(0,0,0,0.35)",justifyContent:"flex-end"},dateModal:{backgroundColor:"#FFFFFF",borderTopLeftRadius:22,borderTopRightRadius:22,padding:18,maxHeight:"65%"},modalHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",paddingBottom:12,borderBottomWidth:1,borderBottomColor:"#E6ECF0"},modalTitle:{fontSize:17,fontWeight:"800",color:"#17202A"},optionsList:{marginTop:8},optionItem:{paddingVertical:13,borderBottomWidth:1,borderBottomColor:"#F0F3F5"},optionText:{textAlign:"center",fontSize:15,color:"#33424F"},
  privacyRow:{flexDirection:"row",gap:8},privacy:{flex:1,padding:12,borderWidth:1,borderColor:"#CFD9DE",borderRadius:11,alignItems:"center"},privacyOn:{borderColor:BLUE,backgroundColor:"#E8F5FD"},privacyText:{fontSize:12,color:"#657786",fontWeight:"700"},privacyTextOn:{color:BLUE},
  primary:{height:49,backgroundColor:BLUE,borderRadius:25,alignItems:"center",justifyContent:"center",marginTop:20},primaryText:{color:"#FFFFFF",fontSize:14,fontWeight:"900"},switch:{color:BLUE,textAlign:"center",fontSize:12,fontWeight:"800",marginTop:18},error:{color:"#C0392B",fontSize:12,lineHeight:18,marginTop:12},legal:{textAlign:"center",fontSize:10,color:"#8B98A5",marginTop:22},
  interests:{flexDirection:"row",flexWrap:"wrap",gap:9,marginTop:20},interest:{paddingVertical:12,paddingHorizontal:13,borderWidth:1,borderColor:"#CFD9DE",borderRadius:22,backgroundColor:"#FFFFFF",flexDirection:"row",alignItems:"center",gap:7},interestOn:{borderColor:BLUE,backgroundColor:"#E8F5FD"},interestText:{fontSize:12,color:"#536471",fontWeight:"700"},interestTextOn:{color:BLUE}
