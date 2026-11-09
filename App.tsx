@@ -14,7 +14,7 @@ import { supabase } from "./src/lib/supabase";
 type Post = {
   id: string | number; name: string; role: string; time: string; category: string;
   title: string; body: string; tags: string[]; likes: number; comments: number;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; imageUrl?: string | null;
 };
 
 const categories = ["الكل", "البرمجة", "الأمن السيبراني", "الذكاء الاصطناعي", "الشبكات"];
