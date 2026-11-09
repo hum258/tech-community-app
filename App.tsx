@@ -46,8 +46,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("home");
   const [activeCategory, setActiveCategory] = useState("الكل");
   const [query, setQuery] = useState("");
-  const [liked, setLiked] = useState<number[]>([]);
-  const [saved, setSaved] = useState<number[]>([]);
+  const [liked, setLiked] = useState<Array<string | number>>([]);
+  const [saved, setSaved] = useState<Array<string | number>>([]);
   const [posts, setPosts] = useState(initialPosts);
   const [composerOpen, setComposerOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -229,15 +229,15 @@ export default function App() {
               <View style={styles.postDivider}/>
               <View style={styles.postActions}>
                 <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#8EA5BD"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{post.likes+(isLiked?1:0)}</Text></Pressable>
-                <Pressable style={styles.action} onPress={()=>{setCommentingPost(commentingPost===post.id?null:post.id);setCommentDraft("");}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#69C9F3":"#8EA5BD"}/><Text style={styles.actionText}>{post.comments+(postComments[post.id]?.length||0)}</Text></Pressable>
+                <Pressable style={styles.action} onPress={()=>{setCommentingPost(commentingPost===post.id?null:post.id);setCommentDraft("");}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#69C9F3":"#8EA5BD"}/><Text style={styles.actionText}>{post.comments+(postComments[String(post.id)]?.length||0)}</Text></Pressable>
                 <Pressable style={styles.action} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#8EA5BD"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
                 <Pressable style={styles.saveAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#69C9F3":"#8EA5BD"}/></Pressable>
               </View>
               {commentingPost===post.id && <View style={styles.commentPanel}>
-                {(postComments[post.id]||[]).map((comment,index)=><View key={index} style={styles.commentBubble}><Text style={styles.commentAuthor}>{isArabic?"أنت":"You"}</Text><Text style={[styles.commentBody,isArabic&&styles.rtl]}>{comment}</Text></View>)}
+                {(postComments[String(post.id)]||[]).map((comment,index)=><View key={index} style={styles.commentBubble}><Text style={styles.commentAuthor}>{isArabic?"أنت":"You"}</Text><Text style={[styles.commentBody,isArabic&&styles.rtl]}>{comment}</Text></View>)}
                 <View style={styles.commentComposer}>
                   <TextInput value={commentDraft} onChangeText={setCommentDraft} placeholder={isArabic?"اكتب تعليقاً...":"Write a comment..."} placeholderTextColor="#7188A2" style={[styles.commentInput,isArabic&&styles.rtl]}/>
-                  <Pressable onPress={()=>{if(commentDraft.trim()){setPostComments(old=>({...old,[post.id]:[...(old[post.id]||[]),commentDraft.trim()]}));setCommentDraft("");}}} style={styles.commentSend}><MaterialCommunityIcons name="send" size={17} color="#071426"/></Pressable>
+                  <Pressable onPress={async ()=>{if(!commentDraft.trim())return;if(!supabase||!currentUserId||typeof post.id!=="string"){setFeedNotice("سجّل الدخول لإضافة تعليق.");return;}const value=commentDraft.trim();const {error}=await supabase.from("comments").insert({post_id:post.id,author_id:currentUserId,body:value});if(error){setFeedNotice("تعذر إضافة التعليق: "+error.message);return;}setPostComments(old=>({...old,[String(post.id)]:[...(old[String(post.id)]||[]),value]}));setCommentDraft("");}} style={styles.commentSend}><MaterialCommunityIcons name="send" size={17} color="#071426"/></Pressable>
                 </View>
               </View>}
             </View>;
