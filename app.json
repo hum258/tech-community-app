@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Tech Community",
+    "slug": "tech-community-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#071426"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hum258.techcommunity"
+    },
+    "android": {
+      "package": "com.hum258.techcommunity",
+      "adaptiveIcon": {
+        "backgroundColor": "#071426"
+      }
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ]
+  }
+}
