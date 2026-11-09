@@ -48,10 +48,21 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   const strongPassword = (value: string) => value.length >= 10 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /[0-9]/.test(value) && /[^A-Za-z0-9]/.test(value);
-  const validDate = (value: string) => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-    const date = new Date(value + "T00:00:00");
-    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value && date < new Date();
+  const normalizeBirthDate = (raw: string): string | null => {
+    const value = raw.trim()
+      .replace(/[٠-٩]/g, d => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+      .replace(/[۰-۹]/g, d => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+      .replace(/[/.]/g, "-");
+    const match = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (!match) return null;
+    const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+    if (year < 1900 || month < 1 || month > 12 || day < 1) return null;
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    if (day > daysInMonth) return null;
+    const normalized = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    return normalized < today ? normalized : null;
   };
 
   const submit = async () => {
@@ -60,7 +71,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     if (mode === "signup") {
       if (!name.trim() || !username.trim() || !email.trim() || !birthDate.trim()) { setNotice("أكمل جميع الحقول المطلوبة."); return; }
       if (!/^[a-zA-Z0-9_]{3,20}$/.test(username.trim())) { setNotice("اسم المستخدم يجب أن يكون 3–20 حرفاً إنجليزياً أو رقماً أو _ فقط."); return; }
-      if (!validDate(birthDate.trim())) { setNotice("اكتب تاريخ الميلاد بصيغة YYYY-MM-DD وتأكد أنه تاريخ صحيح."); return; }
+      const normalizedBirthDate = normalizeBirthDate(birthDate);
+      if (!normalizedBirthDate) { setNotice("تأكد من تاريخ الميلاد: السنة-الشهر-اليوم، مثال 2008-04-21. ويمكنك استخدام / بدل -."); return; }
       if (!strongPassword(password)) { setNotice("كلمة المرور ضعيفة. استخدم 10 خانات على الأقل مع حرف كبير وصغير ورقم ورمز."); return; }
       if (password !== confirmPassword) { setNotice("كلمتا المرور غير متطابقتين."); return; }
     } else if (!email.trim() || !password) { setNotice("أدخل البريد الإلكتروني وكلمة المرور."); return; }
@@ -70,7 +82,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
-          options: { data: { display_name: name.trim(), username: username.trim().toLowerCase(), date_of_birth: birthDate.trim(), is_private: isPrivate, account_type: "personal" } }
+          options: { data: { display_name: name.trim(), username: username.trim().toLowerCase(), date_of_birth: normalizedBirthDate, is_private: isPrivate, account_type: "personal" } }
         });
         if (error) throw error;
         if (!data.session) {
@@ -78,7 +90,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         } else {
           setSession(data.session);
           await supabase.from("profiles").update({ username: username.trim().toLowerCase(), is_private: isPrivate }).eq("id", data.user!.id);
-          await supabase.from("account_private_details").upsert({ user_id: data.user!.id, date_of_birth: birthDate.trim() });
+          await supabase.from("account_private_details").upsert({ user_id: data.user!.id, date_of_birth: normalizedBirthDate });
           setNeedsInterests(true);
         }
       } else {
