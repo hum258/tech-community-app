@@ -62,7 +62,7 @@ export default function SecondaryScreen({ tab, isArabic, onBackHome }: Props) {
           <View style={s.rowCard}><MaterialCommunityIcons name="cog-outline" size={21} color={palette.cyan}/><Text style={[s.cardTitle, s.flex, ar && s.rtl]}>{ar ? "الإعدادات والخصوصية" : "Settings & privacy"}</Text><MaterialCommunityIcons name="chevron-right" size={20} color={palette.muted}/></View>
           <View style={s.verifyCard}>
             <Text style={[s.verifyTitle, ar && s.rtl]}>{ar ? "التوثيق المجاني" : "Free verification"}</Text>
-            <Text style={[s.detail, ar && s.rtl]}>{ar ? "شارة التوثيق مجانية للحسابات الشخصية والشركات." : "Verification badges are free for personal and company accounts."}</Text>
+            <Text style={[s.detail, ar && s.rtl]}>{ar ? "التوثيق تلقائي ومجاني فور إنشاء الحساب." : "Verification is automatic and free as soon as an account is created."}</Text>
             <View style={s.verifyRow}>
               <MaterialCommunityIcons name="check-decagram" size={22} color="#35AFFF"/>
               <View style={s.flex}><Text style={s.verifyName}>{ar ? "الحسابات الشخصية" : "Personal accounts"}</Text><Text style={s.verifyDetail}>{ar ? "شارة زرقاء" : "Blue badge"}</Text></View>
@@ -73,7 +73,7 @@ export default function SecondaryScreen({ tab, isArabic, onBackHome }: Props) {
               <View style={s.flex}><Text style={s.verifyName}>{ar ? "الشركات والمؤسسات" : "Companies & organizations"}</Text><Text style={s.verifyDetail}>{ar ? "شارة فضية" : "Silver badge"}</Text></View>
               <Text style={s.freeLabel}>{ar ? "مجاني" : "FREE"}</Text>
             </View>
-            <Text style={[s.verifyFoot, ar && s.rtl]}>{ar ? "هذه معاينة لتصميم الشارات؛ منح التوثيق الفعلي سيتم بعد مراجعة الحسابات من لوحة الإدارة." : "Badge design preview. Actual verification will be granted after account review in the admin dashboard."}</Text>
+            <Text style={[s.verifyFoot, ar && s.rtl]}>{ar ? "تظهر الشارة تلقائياً عند إنشاء الحساب: زرقاء للشخصي وفضية للشركات، دون طلب أو انتظار." : "The badge is assigned automatically at signup: blue for personal accounts and silver for companies, with no application or waiting."}</Text>
           </View>
         </> : <>
           <View style={s.formCard}>
