@@ -131,7 +131,7 @@ function CommunityApp() {
       <View style={[styles.app,{backgroundColor:"#FFFFFF"}]}>
         <View style={styles.topBar}>
           <View style={styles.brandWrap}>
-            <View style={styles.brandMark}><MaterialCommunityIcons name="code-braces" size={22} color="#071426" /></View>
+            <View style={styles.brandMark}><MaterialCommunityIcons name="code-braces" size={22} color="#FFFFFF" /></View>
             <View>
               <Text style={styles.brand}>TECH COMMUNITY</Text>
               <Text style={styles.brandSub}>CONNECT • LEARN • BUILD</Text>
@@ -142,7 +142,7 @@ function CommunityApp() {
               <Text style={styles.langText}>{isArabic ? "EN" : "ع"} </Text>
             </Pressable>
             <Pressable style={styles.iconButton} onPress={()=>setActiveTab("messages")}>
-              <MaterialCommunityIcons name="bell-outline" size={21} color="#DCEBFA" />
+              <MaterialCommunityIcons name="bell-outline" size={21} color="#536471" />
               <View style={styles.notificationDot} />
             </Pressable>
           </View>
@@ -154,7 +154,7 @@ function CommunityApp() {
             <View style={styles.heroGlow} />
             <View style={styles.heroTop}>
               <View style={styles.livePill}><View style={styles.liveDot}/><Text style={styles.liveText}>TECH NETWORK</Text></View>
-              <MaterialCommunityIcons name="orbit" size={25} color="#69C9F3" />
+              <MaterialCommunityIcons name="orbit" size={25} color="#1D9BF0" />
             </View>
             <Text style={[styles.heroTitle, isArabic && styles.rtl]}>{labels.greeting}</Text>
             <Text style={[styles.heroSubtitle, isArabic && styles.rtl]}>{labels.subtitle}</Text>
@@ -177,7 +177,7 @@ function CommunityApp() {
           <View style={styles.sectionHeading}>
             <View><Text style={[styles.sectionTitle, isArabic && styles.rtl]}>{labels.feed}</Text></View>
             <Pressable style={styles.writeButton} onPress={()=>setComposerOpen(true)}>
-              <MaterialCommunityIcons name="plus" size={18} color="#071426" />
+              <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
               <Text style={styles.writeText}>{isArabic?"منشور":"Post"}</Text>
             </Pressable>
           </View>
@@ -192,9 +192,13 @@ function CommunityApp() {
 
           {composerOpen && <View style={styles.composer}>
             <Text style={[styles.composerTitle, isArabic && styles.rtl]}>{isArabic?"أنشئ منشورك":"Create a post"}</Text>
-            <TextInput multiline value={draft} onChangeText={setDraft} placeholder={labels.compose} placeholderTextColor="#7188A2" style={[styles.composerInput, isArabic && styles.rtl]} />
+            <TextInput multiline value={draft} onChangeText={setDraft} placeholder={labels.compose} placeholderTextColor="#657786" style={[styles.composerInput, isArabic && styles.rtl]} />
+            <Pressable onPress={async ()=>{const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],quality:0.8});if(!result.canceled && result.assets[0])setSelectedImage(result.assets[0].uri);}} style={{flexDirection:"row",alignItems:"center",gap:7,marginTop:10}}>
+              <MaterialCommunityIcons name="image-outline" size={21} color="#1D9BF0"/><Text style={{color:"#1D9BF0",fontWeight:"700"}}>إضافة صورة من المعرض</Text>
+            </Pressable>
+            {selectedImage ? <View style={{flexDirection:"row",alignItems:"center",gap:10,marginTop:10}}><Image source={{uri:selectedImage}} style={{width:100,height:90,borderRadius:12}}/><Pressable onPress={()=>setSelectedImage(null)}><MaterialCommunityIcons name="close-circle" size={24} color="#E0245E"/></Pressable></View> : null}
             <View style={styles.composerActions}>
-              <Pressable onPress={()=>setComposerOpen(false)}><Text style={styles.cancelText}>{labels.cancel}</Text></Pressable>
+              <Pressable onPress={()=>{setComposerOpen(false);setSelectedImage(null);}}><Text style={styles.cancelText}>{labels.cancel}</Text></Pressable>
               <Pressable onPress={publish} style={styles.publishButton}><Text style={styles.publishText}>{labels.publish}</Text></Pressable>
             </View>
           </View>}
@@ -211,7 +215,7 @@ function CommunityApp() {
                   <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text><MaterialCommunityIcons name="account-circle-outline" size={14} color="#7891AB"/></View>
                   <Text style={styles.authorRole}>{post.role} · {post.time}</Text>
                 </View>
-                <Pressable style={styles.moreButton}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#8EA5BD"/></Pressable>
+                <Pressable style={styles.moreButton}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#657786"/></Pressable>
               </View>
               <View style={styles.postCategory}><Text style={styles.categoryText}>{post.category}</Text></View>
               <Text style={[styles.postTitle, isArabic && styles.rtl]}>{post.title}</Text>
@@ -219,16 +223,16 @@ function CommunityApp() {
               {post.imageUrl ? <Image source={{uri:post.imageUrl}} style={{width:"100%",height:230,borderRadius:14,marginTop:12}} resizeMode="cover"/> : null}<View style={styles.tags}>{post.tags.map(tag=><View key={tag} style={styles.tag}><Text style={styles.tagText}>#{tag}</Text></View>)}</View>
               <View style={styles.postDivider}/>
               <View style={styles.postActions}>
-                <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#8EA5BD"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{post.likes+(isLiked?1:0)}</Text></Pressable>
-                <Pressable style={styles.action} onPress={()=>{setCommentingPost(commentingPost===post.id?null:post.id);setCommentDraft("");}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#69C9F3":"#8EA5BD"}/><Text style={styles.actionText}>{post.comments+(postComments[String(post.id)]?.length||0)}</Text></Pressable>
-                <Pressable style={styles.action} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#8EA5BD"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
-                <Pressable style={styles.saveAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#69C9F3":"#8EA5BD"}/></Pressable>
+                <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#657786"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{post.likes+(isLiked?1:0)}</Text></Pressable>
+                <Pressable style={styles.action} onPress={()=>{setCommentingPost(commentingPost===post.id?null:post.id);setCommentDraft("");}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{post.comments+(postComments[String(post.id)]?.length||0)}</Text></Pressable>
+                <Pressable style={styles.action} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#657786"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
+                <Pressable style={styles.saveAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#1D9BF0":"#657786"}/></Pressable>
               </View>
               {commentingPost===post.id && <View style={styles.commentPanel}>
                 {(postComments[String(post.id)]||[]).map((comment,index)=><View key={index} style={styles.commentBubble}><Text style={styles.commentAuthor}>{isArabic?"أنت":"You"}</Text><Text style={[styles.commentBody,isArabic&&styles.rtl]}>{comment}</Text></View>)}
                 <View style={styles.commentComposer}>
                   <TextInput value={commentDraft} onChangeText={setCommentDraft} placeholder={isArabic?"اكتب تعليقاً...":"Write a comment..."} placeholderTextColor="#7188A2" style={[styles.commentInput,isArabic&&styles.rtl]}/>
-                  <Pressable onPress={async ()=>{if(!commentDraft.trim())return;if(!supabase||!currentUserId||typeof post.id!=="string"){setFeedNotice("سجّل الدخول لإضافة تعليق.");return;}const value=commentDraft.trim();const {error}=await supabase.from("comments").insert({post_id:post.id,author_id:currentUserId,body:value});if(error){setFeedNotice("تعذر إضافة التعليق: "+error.message);return;}setPostComments(old=>({...old,[String(post.id)]:[...(old[String(post.id)]||[]),value]}));setCommentDraft("");}} style={styles.commentSend}><MaterialCommunityIcons name="send" size={17} color="#071426"/></Pressable>
+                  <Pressable onPress={async ()=>{if(!commentDraft.trim())return;if(!supabase||!currentUserId||typeof post.id!=="string"){setFeedNotice("سجّل الدخول لإضافة تعليق.");return;}const value=commentDraft.trim();const {error}=await supabase.from("comments").insert({post_id:post.id,author_id:currentUserId,body:value});if(error){setFeedNotice("تعذر إضافة التعليق: "+error.message);return;}setPostComments(old=>({...old,[String(post.id)]:[...(old[String(post.id)]||[]),value]}));setCommentDraft("");}} style={styles.commentSend}><MaterialCommunityIcons name="send" size={17} color="#FFFFFF"/></Pressable>
                 </View>
               </View>}
             </View>;
@@ -239,7 +243,7 @@ function CommunityApp() {
 
         <View style={styles.bottomNav}>
           {navItems.map(item=><Pressable key={item.key} onPress={()=>setActiveTab(item.key)} style={styles.navItem}>
-            <View style={[styles.navIconWrap,activeTab===item.key&&styles.navIconActive]}><MaterialCommunityIcons name={item.icon} size={21} color={activeTab===item.key?"#69C9F3":"#7891AB"}/></View>
+            <View style={[styles.navIconWrap,activeTab===item.key&&styles.navIconActive]}><MaterialCommunityIcons name={item.icon} size={21} color={activeTab===item.key?"#1D9BF0":"#7891AB"}/></View>
             <Text style={[styles.navLabel,activeTab===item.key&&styles.navLabelActive]}>{item.label}</Text>
           </Pressable>)}
         </View>
@@ -249,87 +253,87 @@ function CommunityApp() {
 }
 
 const styles = StyleSheet.create({
-  safe:{flex:1,backgroundColor:"#071426"},
-  app:{flex:1,backgroundColor:"#071426"},
-  topBar:{height:66,paddingHorizontal:18,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:"#142B43"},
+  safe:{flex:1,backgroundColor:"#FFFFFF"},
+  app:{flex:1,backgroundColor:"#FFFFFF"},
+  topBar:{height:66,paddingHorizontal:18,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:"#E6ECF0"},
   brandWrap:{flexDirection:"row",alignItems:"center",gap:10},
-  brandMark:{width:39,height:39,borderRadius:13,backgroundColor:"#69C9F3",alignItems:"center",justifyContent:"center"},
-  brand:{color:"#EAF5FF",fontWeight:"900",fontSize:13,letterSpacing:1.3},
+  brandMark:{width:39,height:39,borderRadius:13,backgroundColor:"#1D9BF0",alignItems:"center",justifyContent:"center"},
+  brand:{color:"#17202A",fontWeight:"900",fontSize:13,letterSpacing:1.3},
   brandSub:{color:"#6D8AA7",fontSize:8,letterSpacing:1.7,marginTop:3},
   topActions:{flexDirection:"row",alignItems:"center",gap:9},
-  langButton:{height:35,minWidth:38,paddingHorizontal:8,borderRadius:11,borderWidth:1,borderColor:"#25425E",alignItems:"center",justifyContent:"center"},
+  langButton:{height:35,minWidth:38,paddingHorizontal:8,borderRadius:11,borderWidth:1,borderColor:"#CFD9DE",alignItems:"center",justifyContent:"center"},
   langText:{color:"#B9D8ED",fontSize:12,fontWeight:"800"},
   iconButton:{width:37,height:37,borderRadius:12,backgroundColor:"#10243A",alignItems:"center",justifyContent:"center"},
-  notificationDot:{position:"absolute",top:7,right:8,width:6,height:6,borderRadius:3,backgroundColor:"#69C9F3"},
+  notificationDot:{position:"absolute",top:7,right:8,width:6,height:6,borderRadius:3,backgroundColor:"#1D9BF0"},
   scroll:{flex:1},
   content:{paddingHorizontal:16,paddingTop:17},
-  hero:{backgroundColor:"#102943",borderWidth:1,borderColor:"#1D4968",borderRadius:22,padding:19,overflow:"hidden"},
-  heroGlow:{position:"absolute",width:180,height:180,borderRadius:90,backgroundColor:"#164B6A",opacity:0.35,top:-100,right:-35},
+  hero:{backgroundColor:"#F5F8FA",borderWidth:1,borderColor:"#E6ECF0",borderRadius:22,padding:19,overflow:"hidden"},
+  heroGlow:{position:"absolute",width:180,height:180,borderRadius:90,backgroundColor:"#E8F5FD",opacity:0.35,top:-100,right:-35},
   heroTop:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:15},
-  livePill:{flexDirection:"row",alignItems:"center",gap:7,backgroundColor:"#163B53",paddingHorizontal:10,paddingVertical:6,borderRadius:20},
+  livePill:{flexDirection:"row",alignItems:"center",gap:7,backgroundColor:"#E8F5FD",paddingHorizontal:10,paddingVertical:6,borderRadius:20},
   liveDot:{width:6,height:6,borderRadius:3,backgroundColor:"#61D4B0"},
   liveText:{color:"#8BD8F4",fontSize:9,fontWeight:"800",letterSpacing:1.1},
-  heroTitle:{color:"#F0F8FF",fontSize:23,fontWeight:"900",textAlign:"left",lineHeight:32},
+  heroTitle:{color:"#17202A",fontSize:23,fontWeight:"900",textAlign:"left",lineHeight:32},
   heroSubtitle:{color:"#A6C2D9",fontSize:13,marginTop:5,textAlign:"left",lineHeight:21},
   heroStats:{flexDirection:"row",alignItems:"center",gap:18,marginTop:22},
   statNumber:{color:"#79D4F8",fontSize:17,fontWeight:"900"},
-  statLabel:{color:"#8FAAC2",fontSize:10,marginTop:3},
+  statLabel:{color:"#657786",fontSize:10,marginTop:3},
   statDivider:{height:29,width:1,backgroundColor:"#2A4B67"},
-  searchBox:{height:49,backgroundColor:"#0D2034",borderWidth:1,borderColor:"#1B3853",borderRadius:15,marginTop:17,paddingHorizontal:13,flexDirection:"row",alignItems:"center",gap:9},
+  searchBox:{height:49,backgroundColor:"#F5F8FA",borderWidth:1,borderColor:"#CFD9DE",borderRadius:15,marginTop:17,paddingHorizontal:13,flexDirection:"row",alignItems:"center",gap:9},
   searchInput:{flex:1,color:"#E7F3FD",fontSize:12,textAlign:"left",paddingVertical:0},
   sectionHeading:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginTop:24,marginBottom:13},
-  sectionTitle:{color:"#EAF5FF",fontSize:18,fontWeight:"900",textAlign:"left"},
-  sectionHint:{color:"#718BA4",fontSize:10,marginTop:4,textAlign:"left"},
-  writeButton:{height:37,paddingHorizontal:12,borderRadius:12,backgroundColor:"#69C9F3",flexDirection:"row",alignItems:"center",gap:4},
-  writeText:{color:"#071426",fontSize:12,fontWeight:"900"},
+  sectionTitle:{color:"#17202A",fontSize:18,fontWeight:"900",textAlign:"left"},
+  sectionHint:{color:"#657786",fontSize:10,marginTop:4,textAlign:"left"},
+  writeButton:{height:37,paddingHorizontal:12,borderRadius:12,backgroundColor:"#1D9BF0",flexDirection:"row",alignItems:"center",gap:4},
+  writeText:{color:"#FFFFFF",fontSize:12,fontWeight:"900"},
   chips:{gap:8,paddingBottom:13},
-  chip:{paddingHorizontal:14,paddingVertical:9,borderRadius:20,backgroundColor:"#0D2034",borderWidth:1,borderColor:"#1B3853"},
-  chipActive:{backgroundColor:"#153B56",borderColor:"#4CAED8"},
-  chipText:{color:"#8FAAC2",fontSize:11,fontWeight:"700"},
+  chip:{paddingHorizontal:14,paddingVertical:9,borderRadius:20,backgroundColor:"#F5F8FA",borderWidth:1,borderColor:"#CFD9DE"},
+  chipActive:{backgroundColor:"#E8F5FD",borderColor:"#4CAED8"},
+  chipText:{color:"#657786",fontSize:11,fontWeight:"700"},
   chipTextActive:{color:"#8EDCFA"},
-  postCard:{backgroundColor:"#0D1F32",borderWidth:1,borderColor:"#1B344D",borderRadius:19,padding:15,marginBottom:12},
+  postCard:{backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E6ECF0",borderRadius:19,padding:15,marginBottom:12},
   postHeader:{flexDirection:"row",alignItems:"center",gap:10},
   avatar:{width:42,height:42,borderRadius:14,borderWidth:1,alignItems:"center",justifyContent:"center"},
   authorInfo:{flex:1},
   nameLine:{flexDirection:"row",alignItems:"center",gap:5},
-  authorName:{color:"#E8F4FF",fontSize:13,fontWeight:"800"},
-  authorRole:{color:"#7D96AE",fontSize:10,marginTop:4},
+  authorName:{color:"#17202A",fontSize:13,fontWeight:"800"},
+  authorRole:{color:"#657786",fontSize:10,marginTop:4},
   moreButton:{padding:4},
-  postCategory:{alignSelf:"flex-start",marginTop:14,backgroundColor:"#15334B",paddingHorizontal:9,paddingVertical:5,borderRadius:8},
+  postCategory:{alignSelf:"flex-start",marginTop:14,backgroundColor:"#E8F5FD",paddingHorizontal:9,paddingVertical:5,borderRadius:8},
   categoryText:{color:"#81D1F2",fontSize:9,fontWeight:"800"},
-  postTitle:{color:"#E8F4FF",fontSize:15,fontWeight:"900",marginTop:10,lineHeight:23,textAlign:"left"},
-  postBody:{color:"#A3B8CC",fontSize:12,lineHeight:21,marginTop:6,textAlign:"left"},
+  postTitle:{color:"#17202A",fontSize:15,fontWeight:"900",marginTop:10,lineHeight:23,textAlign:"left"},
+  postBody:{color:"#536471",fontSize:12,lineHeight:21,marginTop:6,textAlign:"left"},
   tags:{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:12},
-  tag:{backgroundColor:"#102A40",paddingHorizontal:8,paddingVertical:5,borderRadius:7},
+  tag:{backgroundColor:"#F5F8FA",paddingHorizontal:8,paddingVertical:5,borderRadius:7},
   tagText:{color:"#6EC6EA",fontSize:10,fontWeight:"700"},
-  postDivider:{height:1,backgroundColor:"#1B344D",marginTop:14,marginBottom:10},
+  postDivider:{height:1,backgroundColor:"#E6ECF0",marginTop:14,marginBottom:10},
   postActions:{flexDirection:"row",alignItems:"center",gap:20},
   action:{flexDirection:"row",alignItems:"center",gap:6},
-  actionText:{color:"#8EA5BD",fontSize:11},
+  actionText:{color:"#657786",fontSize:11},
   likedText:{color:"#F07891"},
   saveAction:{marginLeft:"auto",padding:3},
-  commentPanel:{marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:"#1B344D"},
-  commentBubble:{backgroundColor:"#102A40",borderRadius:10,padding:9,marginBottom:7},
+  commentPanel:{marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:"#E6ECF0"},
+  commentBubble:{backgroundColor:"#F5F8FA",borderRadius:10,padding:9,marginBottom:7},
   commentAuthor:{color:"#78CBEF",fontSize:10,fontWeight:"800",marginBottom:3},
   commentBody:{color:"#C0D2E1",fontSize:11,lineHeight:17},
   commentComposer:{flexDirection:"row",alignItems:"center",gap:8,marginTop:5},
-  commentInput:{flex:1,minHeight:40,maxHeight:80,backgroundColor:"#091A2B",borderWidth:1,borderColor:"#25425E",borderRadius:10,paddingHorizontal:10,color:"#EAF5FF",fontSize:11},
-  commentSend:{width:39,height:39,borderRadius:11,backgroundColor:"#69C9F3",alignItems:"center",justifyContent:"center"},
-  composer:{backgroundColor:"#102943",borderWidth:1,borderColor:"#2B6384",borderRadius:17,padding:14,marginBottom:14},
-  composerTitle:{color:"#EAF5FF",fontWeight:"800",fontSize:14,marginBottom:10,textAlign:"left"},
-  composerInput:{minHeight:90,color:"#EAF5FF",fontSize:13,textAlign:"left",textAlignVertical:"top",backgroundColor:"#0A1B2D",borderRadius:12,padding:12},
+  commentInput:{flex:1,minHeight:40,maxHeight:80,backgroundColor:"#F5F8FA",borderWidth:1,borderColor:"#CFD9DE",borderRadius:10,paddingHorizontal:10,color:"#17202A",fontSize:11},
+  commentSend:{width:39,height:39,borderRadius:11,backgroundColor:"#1D9BF0",alignItems:"center",justifyContent:"center"},
+  composer:{backgroundColor:"#F5F8FA",borderWidth:1,borderColor:"#2B6384",borderRadius:17,padding:14,marginBottom:14},
+  composerTitle:{color:"#17202A",fontWeight:"800",fontSize:14,marginBottom:10,textAlign:"left"},
+  composerInput:{minHeight:90,color:"#17202A",fontSize:13,textAlign:"left",textAlignVertical:"top",backgroundColor:"#F5F8FA",borderRadius:12,padding:12},
   composerActions:{flexDirection:"row",justifyContent:"flex-end",alignItems:"center",gap:18,marginTop:12},
   cancelText:{color:"#9CB3C8",fontSize:12},
-  publishButton:{backgroundColor:"#69C9F3",paddingHorizontal:18,paddingVertical:9,borderRadius:10},
-  publishText:{color:"#071426",fontWeight:"900",fontSize:12},
+  publishButton:{backgroundColor:"#1D9BF0",paddingHorizontal:18,paddingVertical:9,borderRadius:10},
+  publishText:{color:"#FFFFFF",fontWeight:"900",fontSize:12},
   empty:{alignItems:"center",padding:35,gap:10},
-  emptyText:{color:"#8FAAC2",fontSize:12},
+  emptyText:{color:"#657786",fontSize:12},
   bottomSpace:{height:18},
-  bottomNav:{height:68,backgroundColor:"#091A2B",borderTopWidth:1,borderTopColor:"#19334C",flexDirection:"row",alignItems:"center",justifyContent:"space-around",paddingHorizontal:4},
+  bottomNav:{height:68,backgroundColor:"#F5F8FA",borderTopWidth:1,borderTopColor:"#E6ECF0",flexDirection:"row",alignItems:"center",justifyContent:"space-around",paddingHorizontal:4},
   navItem:{flex:1,alignItems:"center",justifyContent:"center",gap:3},
   navIconWrap:{width:42,height:29,alignItems:"center",justifyContent:"center",borderRadius:11},
-  navIconActive:{backgroundColor:"#14334B"},
-  navLabel:{fontSize:9,color:"#718BA4",fontWeight:"600"},
+  navIconActive:{backgroundColor:"#E8F5FD"},
+  navLabel:{fontSize:9,color:"#657786",fontWeight:"600"},
   navLabelActive:{color:"#78D3F6",fontWeight:"900"},
   rtl:{textAlign:"right",writingDirection:"rtl"}
 });
