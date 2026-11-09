@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput,
-  I18nManager, StatusBar, Platform
+  I18nManager, StatusBar, Platform, Share
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
@@ -184,7 +184,7 @@ export default function App() {
               <View style={styles.postActions}>
                 <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#8EA5BD"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{post.likes+(isLiked?1:0)}</Text></Pressable>
                 <Pressable style={styles.action} onPress={()=>{setCommentingPost(commentingPost===post.id?null:post.id);setCommentDraft("");}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#69C9F3":"#8EA5BD"}/><Text style={styles.actionText}>{post.comments+(postComments[post.id]?.length||0)}</Text></Pressable>
-                <Pressable style={styles.action}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#8EA5BD"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
+                <Pressable style={styles.action} onPress={() => Share.share({ message: post.title + "\\n\\n" + post.body + "\\n\\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#8EA5BD"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
                 <Pressable style={styles.saveAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#69C9F3":"#8EA5BD"}/></Pressable>
               </View>
               {commentingPost===post.id && <View style={styles.commentPanel}>
