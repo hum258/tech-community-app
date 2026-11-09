@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import SecondaryScreen from "./src/SecondaryScreen";
 
 type Post = {
   id: number; name: string; role: string; time: string; category: string;
@@ -109,6 +110,7 @@ export default function App() {
         </View>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {activeTab !== "home" ? <SecondaryScreen tab={activeTab} isArabic={isArabic} onBackHome={() => setActiveTab("home")} /> : <>
           <View style={styles.hero}>
             <View style={styles.heroGlow} />
             <View style={styles.heroTop}>
@@ -185,6 +187,7 @@ export default function App() {
             </View>;
           })}
           <View style={styles.bottomSpace}/>
+          </>}
         </ScrollView>
 
         <View style={styles.bottomNav}>
