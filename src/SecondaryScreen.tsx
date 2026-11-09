@@ -65,6 +65,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     if(!supabase)return;
     const {data:{user}}=await supabase.auth.getUser();
     if(!user)return;
+    setUserId(user.id);
     const term=query.trim().replace(/[%,]/g,"");
     let request=supabase.from("profiles").select("id,display_name,username,bio,specialty,avatar_url,account_type,is_verified").eq("is_private",false).neq("id",user.id).order("created_at",{ascending:false}).limit(30);
     if(term) request=request.or("username.ilike.%"+term+"%,display_name.ilike.%"+term+"%,specialty.ilike.%"+term+"%");
