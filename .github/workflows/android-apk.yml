@@ -32,6 +32,11 @@ jobs:
       - name: Generate Android project
         run: npx expo prebuild --platform android --non-interactive
 
+      - name: Diagnose Expo autolinking metadata
+        run: |
+          npx expo-modules-autolinking resolve --platform android --json > expo-autolinking.json
+          node -e "const x=require('./expo-autolinking.json'); for (const [i,m] of x.modules.entries()) console.log(JSON.stringify({index:i,packageName:m.packageName,packageVersion:m.packageVersion,projects:m.projects},null,2))"
+
       - name: Build APK
         working-directory: android
         run: |
