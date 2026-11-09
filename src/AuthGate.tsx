@@ -117,6 +117,14 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     } finally { setBusy(false); }
   };
 
+  const resetPassword = async () => {
+    if(!supabase||!email.trim()){setNotice("أدخل بريدك الإلكتروني أولاً لإرسال رابط استعادة كلمة المرور.");return;}
+    setBusy(true);
+    const {error}=await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
+    setBusy(false);
+    setNotice(error?("تعذر إرسال رابط الاستعادة: "+error.message):"إذا كان البريد مسجلاً، سيصلك رابط استعادة كلمة المرور.");
+  };
+
   const finishInterests = async (skip = false) => {
     if (!supabase || !session?.user) return;
     setBusy(true);
@@ -167,6 +175,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       {!!notice && <Text style={a.error}>{notice}</Text>}
       <Pressable style={[a.primary, busy && {opacity:0.6}]} onPress={submit} disabled={busy}><Text style={a.primaryText}>{busy ? "لحظة..." : mode === "signup" ? "إنشاء الحساب" : "تسجيل الدخول"}</Text></Pressable>
       <Pressable onPress={() => { setMode(mode === "signup" ? "login" : "signup"); setNotice(""); }}><Text style={a.switch}>{mode === "signup" ? "عندك حساب؟ سجّل الدخول" : "ما عندك حساب؟ أنشئ حساباً"}</Text></Pressable>
+      {mode === "login" && <Pressable onPress={resetPassword} disabled={busy}><Text style={a.switch}>نسيت كلمة المرور؟ أرسل رابط استعادة</Text></Pressable>}
     </View>
     <Text style={a.legal}>Tech Community · Connect, learn and build</Text>
     <Modal visible={!!datePickerPart} transparent animationType="slide" onRequestClose={() => setDatePickerPart(null)}>
