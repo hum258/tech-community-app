@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 type Props = { tab: string; isArabic: boolean; onBackHome: () => void };
 
@@ -17,6 +18,7 @@ export default function SecondaryScreen({ tab, isArabic, onBackHome }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [registrationNotice, setRegistrationNotice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [exploreQuery, setExploreQuery] = useState("");
   const [joinedCommunities, setJoinedCommunities] = useState<string[]>([]);
   const title = tab === "explore" ? (ar ? "استكشف المجتمع" : "Explore the community")
@@ -96,8 +98,37 @@ export default function SecondaryScreen({ tab, isArabic, onBackHome }: Props) {
             <TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="name@example.com" placeholderTextColor="#7188A2" style={s.fieldInput}/>
             <Text style={[s.fieldLabel, ar && s.rtl]}>{ar ? "كلمة المرور" : "PASSWORD"}</Text>
             <TextInput value={password} onChangeText={setPassword} secureTextEntry placeholder={ar ? "8 أحرف على الأقل" : "At least 8 characters"} placeholderTextColor="#7188A2" style={s.fieldInput}/>
-            <Pressable style={s.submit} onPress={() => setRegistrationNotice(!fullName.trim() || !email.trim() || password.length < 8 ? (ar ? "أكمل الاسم والبريد الإلكتروني، واجعل كلمة المرور 8 أحرف على الأقل." : "Enter your name and email, and use a password of at least 8 characters.") : (ar ? "اكتملت مراجعة الحقول. إنشاء الحساب الفعلي سيتفعّل بعد ربط الخادم." : "The fields look complete. Actual account creation will be enabled after backend integration."))}>
-              <Text style={s.submitText}>{ar ? "متابعة" : "Continue"}</Text>
+            <Pressable style={[s.submit, submitting && { opacity: 0.65 }]} disabled={submitting} onPress={async () => {
+              if (!fullName.trim() || !email.trim() || password.length < 8) {
+                setRegistrationNotice(ar ? "أكمل الاسم والبريد الإلكتروني، واجعل كلمة المرور 8 أحرف على الأقل." : "Enter your name and email, and use a password of at least 8 characters.");
+                return;
+              }
+              if (!isSupabaseConfigured || !supabase) {
+                setRegistrationNotice(ar ? "الاتصال بقاعدة البيانات غير مهيأ حالياً." : "Database connection is not configured yet.");
+                return;
+              }
+              setSubmitting(true);
+              setRegistrationNotice("");
+              try {
+                const { data, error } = await supabase.auth.signUp({
+                  email: email.trim().toLowerCase(),
+                  password,
+                  options: { data: { account_type: accountType, display_name: fullName.trim() } }
+                });
+                if (error) throw error;
+                if (data.session) {
+                  setRegistrationNotice(ar ? "تم إنشاء حسابك وتسجيل دخولك بنجاح. ستُمنح شارة التوثيق تلقائياً حسب نوع الحساب بعد تفعيل قاعدة البيانات." : "Your account was created and you are signed in. Your badge is assigned automatically by account type once the database trigger is active.");
+                } else {
+                  setRegistrationNotice(ar ? "تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيده ثم سجّل الدخول." : "Account created. Check your email to confirm it, then sign in.");
+                }
+              } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                setRegistrationNotice((ar ? "تعذر إنشاء الحساب: " : "Could not create account: ") + message);
+              } finally {
+                setSubmitting(false);
+              }
+            }}>
+              <Text style={s.submitText}>{submitting ? (ar ? "جارٍ الإنشاء..." : "Creating...") : (ar ? "إنشاء الحساب" : "Create account")}</Text>
               <MaterialCommunityIcons name="arrow-right" size={17} color="#071426"/>
             </Pressable>
             {registrationNotice ? <View style={s.formNotice}><MaterialCommunityIcons name="information-outline" size={18} color={palette.cyan}/><Text style={s.noticeText}>{registrationNotice}</Text></View> : null}
