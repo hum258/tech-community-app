@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
@@ -20,17 +20,19 @@ export default function SecondaryScreen({ tab, isArabic, onBackHome }: Props) {
   const [registrationNotice, setRegistrationNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [exploreQuery, setExploreQuery] = useState("");
+  const [profile, setProfile] = useState<any>(null);
   const [joinedCommunities, setJoinedCommunities] = useState<string[]>([]);
+  useEffect(() => { if (tab === "profile" && supabase) { supabase.auth.getUser().then(async ({data}) => { if(data.user){ const {data:row}=await supabase.from("profiles").select("display_name,username,date_of_birth,is_private,interests").eq("id",data.user.id).maybeSingle(); setProfile(row); } }); } }, [tab]);
   const title = tab === "explore" ? (ar ? "استكشف المجتمع" : "Explore the community")
     : tab === "groups" ? (ar ? "المجتمعات التقنية" : "Technical communities")
     : tab === "messages" ? (ar ? "الرسائل" : "Messages")
     : (ar ? "ملفي الشخصي" : "My profile");
 
   const communities = [
-    { icon: "shield-check-outline" as const, name: ar ? "الأمن السيبراني" : "Cybersecurity", detail: ar ? "نقاشات ومصادر ومشاركة خبرات" : "Discussions, resources and shared experience", members: "2.4K" },
-    { icon: "code-tags" as const, name: ar ? "البرمجة وتطوير البرمجيات" : "Programming & Software", detail: ar ? "تطوير الويب والتطبيقات والبرمجيات" : "Web, mobile and software development", members: "3.1K" },
-    { icon: "brain" as const, name: ar ? "الذكاء الاصطناعي" : "Artificial Intelligence", detail: ar ? "تعلم الآلة وأدوات الذكاء الاصطناعي" : "Machine learning and AI tools", members: "1.8K" },
-    { icon: "lan" as const, name: ar ? "الشبكات والبنية التحتية" : "Networks & Infrastructure", detail: ar ? "الشبكات والأنظمة والحوسبة السحابية" : "Networks, systems and cloud", members: "960" }
+    { icon: "shield-check-outline" as const, name: ar ? "الأمن السيبراني" : "Cybersecurity", detail: ar ? "نقاشات ومصادر ومشاركة خبرات" : "Discussions, resources and shared experience", members: "" },
+    { icon: "code-tags" as const, name: ar ? "البرمجة وتطوير البرمجيات" : "Programming & Software", detail: ar ? "تطوير الويب والتطبيقات والبرمجيات" : "Web, mobile and software development", members: "" },
+    { icon: "brain" as const, name: ar ? "الذكاء الاصطناعي" : "Artificial Intelligence", detail: ar ? "تعلم الآلة وأدوات الذكاء الاصطناعي" : "Machine learning and AI tools", members: "" },
+    { icon: "lan" as const, name: ar ? "الشبكات والبنية التحتية" : "Networks & Infrastructure", detail: ar ? "الشبكات والأنظمة والحوسبة السحابية" : "Networks, systems and cloud", members: "" }
   ];
 
   const suggestions = [
@@ -51,90 +53,24 @@ export default function SecondaryScreen({ tab, isArabic, onBackHome }: Props) {
       </>}
       {tab === "groups" && <>
         <Text style={[s.intro, ar && s.rtl]}>{ar ? "انضم إلى مجتمعات حسب تخصصك وشارك المعرفة والمشاريع." : "Join communities by specialty and share knowledge and projects."}</Text>
-        {communities.map(x => { const joined = joinedCommunities.includes(x.name); return <View key={x.name} style={s.communityCard}><View style={s.row}><View style={s.icon}><MaterialCommunityIcons name={x.icon} size={23} color={palette.cyan}/></View><View style={s.flex}><Text style={[s.cardTitle, ar && s.rtl]}>{x.name}</Text><Text style={[s.detail, ar && s.rtl]}>{x.detail}</Text></View></View><View style={s.communityFoot}><Text style={s.detail}>{x.members} {ar ? "عضو" : "members"}</Text><Pressable onPress={() => setJoinedCommunities(old => joined ? old.filter(name => name !== x.name) : [...old, x.name])} style={[s.join, joined && s.joined]}><Text style={[s.joinText, joined && s.joinedText]}>{joined ? (ar ? "تم الانضمام" : "Joined") : (ar ? "انضمام" : "Join")}</Text></Pressable></View></View>; })}
+        {communities.map(x => { const joined = joinedCommunities.includes(x.name); return <View key={x.name} style={s.communityCard}><View style={s.row}><View style={s.icon}><MaterialCommunityIcons name={x.icon} size={23} color={palette.cyan}/></View><View style={s.flex}><Text style={[s.cardTitle, ar && s.rtl]}>{x.name}</Text><Text style={[s.detail, ar && s.rtl]}>{x.detail}</Text></View></View><View style={s.communityFoot}><Text style={s.detail}>{x.members ? x.members + " " + (ar ? "عضو" : "members") : ""}</Text><Pressable onPress={() => setJoinedCommunities(old => joined ? old.filter(name => name !== x.name) : [...old, x.name])} style={[s.join, joined && s.joined]}><Text style={[s.joinText, joined && s.joinedText]}>{joined ? (ar ? "تم الانضمام" : "Joined") : (ar ? "انضمام" : "Join")}</Text></Pressable></View></View>; })}
       </>}
       {tab === "messages" && <>
         <View style={s.notice}><MaterialCommunityIcons name="lock-outline" size={21} color={palette.cyan}/><Text style={[s.noticeText, ar && s.rtl]}>{ar ? "ستظهر محادثاتك هنا بعد تفعيل الحسابات والرسائل الخاصة." : "Your conversations will appear here when accounts and direct messaging are connected."}</Text></View>
         <View style={s.empty}><MaterialCommunityIcons name="message-text-outline" size={38} color="#52718E"/><Text style={s.emptyTitle}>{ar ? "لا توجد محادثات بعد" : "No conversations yet"}</Text><Text style={s.detail}>{ar ? "ابدأ بالتواصل مع أعضاء المجتمع لاحقاً." : "Connect with community members here later."}</Text></View>
       </>}
       {tab === "profile" && <>
-        {!registering ? <>
-          <View style={s.profileCard}><View style={s.profileAvatar}><MaterialCommunityIcons name="account" size={36} color={palette.cyan}/></View><Text style={s.profileName}>{ar ? "ملفك التقني" : "Your tech profile"}</Text><Text style={s.detail}>{ar ? "أنشئ حسابك وابدأ ببناء هويتك التقنية." : "Create your account and start building your tech identity."}</Text><Pressable style={s.join} onPress={() => { setRegistering(true); setRegistrationNotice(""); }}><Text style={s.joinText}>{ar ? "إنشاء حساب جديد" : "Create an account"}</Text></Pressable></View>
-          <View style={s.rowCard}><MaterialCommunityIcons name="folder-outline" size={21} color={palette.cyan}/><Text style={[s.cardTitle, s.flex, ar && s.rtl]}>{ar ? "معرض المشاريع" : "Project portfolio"}</Text><MaterialCommunityIcons name="chevron-right" size={20} color={palette.muted}/></View>
-          <View style={s.rowCard}><MaterialCommunityIcons name="cog-outline" size={21} color={palette.cyan}/><Text style={[s.cardTitle, s.flex, ar && s.rtl]}>{ar ? "الإعدادات والخصوصية" : "Settings & privacy"}</Text><MaterialCommunityIcons name="chevron-right" size={20} color={palette.muted}/></View>
-          <View style={s.verifyCard}>
-            <Text style={[s.verifyTitle, ar && s.rtl]}>{ar ? "التوثيق المجاني" : "Free verification"}</Text>
-            <Text style={[s.detail, ar && s.rtl]}>{ar ? "التوثيق تلقائي ومجاني فور إنشاء الحساب." : "Verification is automatic and free as soon as an account is created."}</Text>
-            <View style={s.verifyRow}>
-              <MaterialCommunityIcons name="check-decagram" size={22} color="#35AFFF"/>
-              <View style={s.flex}><Text style={s.verifyName}>{ar ? "الحسابات الشخصية" : "Personal accounts"}</Text><Text style={s.verifyDetail}>{ar ? "شارة زرقاء" : "Blue badge"}</Text></View>
-              <Text style={s.freeLabel}>{ar ? "مجاني" : "FREE"}</Text>
-            </View>
-            <View style={s.verifyRow}>
-              <MaterialCommunityIcons name="check-decagram" size={22} color="#B8C3D0"/>
-              <View style={s.flex}><Text style={s.verifyName}>{ar ? "الشركات والمؤسسات" : "Companies & organizations"}</Text><Text style={s.verifyDetail}>{ar ? "شارة فضية" : "Silver badge"}</Text></View>
-              <Text style={s.freeLabel}>{ar ? "مجاني" : "FREE"}</Text>
-            </View>
-            <Text style={[s.verifyFoot, ar && s.rtl]}>{ar ? "تظهر الشارة تلقائياً عند إنشاء الحساب: زرقاء للشخصي وفضية للشركات، دون طلب أو انتظار." : "The badge is assigned automatically at signup: blue for personal accounts and silver for companies, with no application or waiting."}</Text>
-          </View>
-        </> : <>
-          <View style={s.formCard}>
-            <Text style={[s.formHeading, ar && s.rtl]}>{ar ? "أنشئ حسابك" : "Create your account"}</Text>
-            <Text style={[s.detail, ar && s.rtl]}>{ar ? "اختر نوع الحساب ثم أدخل بياناتك الأساسية." : "Choose an account type and enter your basic details."}</Text>
-            <Text style={[s.fieldLabel, ar && s.rtl]}>{ar ? "نوع الحساب" : "ACCOUNT TYPE"}</Text>
-            <View style={s.typeRow}>
-              <Pressable onPress={() => setAccountType("personal")} style={[s.typeOption, accountType === "personal" && s.typeSelected]}>
-                <MaterialCommunityIcons name="account-outline" size={21} color={accountType === "personal" ? palette.cyan : palette.muted}/>
-                <Text style={[s.typeText, accountType === "personal" && s.typeTextSelected]}>{ar ? "شخصي" : "Personal"}</Text>
-              </Pressable>
-              <Pressable onPress={() => setAccountType("company")} style={[s.typeOption, accountType === "company" && s.typeSelected]}>
-                <MaterialCommunityIcons name="domain" size={21} color={accountType === "company" ? palette.cyan : palette.muted}/>
-                <Text style={[s.typeText, accountType === "company" && s.typeTextSelected]}>{ar ? "شركة / مؤسسة" : "Company"}</Text>
-              </Pressable>
-            </View>
-            <Text style={[s.fieldLabel, ar && s.rtl]}>{accountType === "personal" ? (ar ? "الاسم الكامل" : "FULL NAME") : (ar ? "اسم الشركة أو المؤسسة" : "COMPANY NAME")}</Text>
-            <TextInput value={fullName} onChangeText={setFullName} placeholder={accountType === "personal" ? (ar ? "اكتب اسمك" : "Your name") : (ar ? "اكتب اسم الشركة" : "Company name")} placeholderTextColor="#7188A2" style={[s.fieldInput, ar && s.rtl]}/>
-            <Text style={[s.fieldLabel, ar && s.rtl]}>{ar ? "البريد الإلكتروني" : "EMAIL ADDRESS"}</Text>
-            <TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="name@example.com" placeholderTextColor="#7188A2" style={s.fieldInput}/>
-            <Text style={[s.fieldLabel, ar && s.rtl]}>{ar ? "كلمة المرور" : "PASSWORD"}</Text>
-            <TextInput value={password} onChangeText={setPassword} secureTextEntry placeholder={ar ? "8 أحرف على الأقل" : "At least 8 characters"} placeholderTextColor="#7188A2" style={s.fieldInput}/>
-            <Pressable style={[s.submit, submitting && { opacity: 0.65 }]} disabled={submitting} onPress={async () => {
-              if (!fullName.trim() || !email.trim() || password.length < 8) {
-                setRegistrationNotice(ar ? "أكمل الاسم والبريد الإلكتروني، واجعل كلمة المرور 8 أحرف على الأقل." : "Enter your name and email, and use a password of at least 8 characters.");
-                return;
-              }
-              if (!isSupabaseConfigured || !supabase) {
-                setRegistrationNotice(ar ? "الاتصال بقاعدة البيانات غير مهيأ حالياً." : "Database connection is not configured yet.");
-                return;
-              }
-              setSubmitting(true);
-              setRegistrationNotice("");
-              try {
-                const { data, error } = await supabase.auth.signUp({
-                  email: email.trim().toLowerCase(),
-                  password,
-                  options: { data: { account_type: accountType, display_name: fullName.trim() } }
-                });
-                if (error) throw error;
-                if (data.session) {
-                  setRegistrationNotice(ar ? "تم إنشاء حسابك وتسجيل دخولك بنجاح. ستُمنح شارة التوثيق تلقائياً حسب نوع الحساب بعد تفعيل قاعدة البيانات." : "Your account was created and you are signed in. Your badge is assigned automatically by account type once the database trigger is active.");
-                } else {
-                  setRegistrationNotice(ar ? "تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتأكيده ثم سجّل الدخول." : "Account created. Check your email to confirm it, then sign in.");
-                }
-              } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                setRegistrationNotice((ar ? "تعذر إنشاء الحساب: " : "Could not create account: ") + message);
-              } finally {
-                setSubmitting(false);
-              }
-            }}>
-              <Text style={s.submitText}>{submitting ? (ar ? "جارٍ الإنشاء..." : "Creating...") : (ar ? "إنشاء الحساب" : "Create account")}</Text>
-              <MaterialCommunityIcons name="arrow-right" size={17} color="#071426"/>
-            </Pressable>
-            {registrationNotice ? <View style={s.formNotice}><MaterialCommunityIcons name="information-outline" size={18} color={palette.cyan}/><Text style={s.noticeText}>{registrationNotice}</Text></View> : null}
-            <Pressable onPress={() => { setRegistering(false); setRegistrationNotice(""); }} style={s.backForm}><Text style={s.backText}>{ar ? "العودة إلى الملف الشخصي" : "Back to profile"}</Text></Pressable>
-          </View>
-        </>}
+        <View style={s.profileCard}>
+          <View style={s.profileAvatar}><MaterialCommunityIcons name="account" size={36} color={palette.cyan}/></View>
+          <Text style={s.profileName}>{profile?.display_name || "حسابي"}</Text>
+          <Text style={s.detail}>@{profile?.username || "username"}</Text>
+          <Text style={s.detail}>{profile?.is_private ? "حساب خاص" : "حساب عام"}</Text>
+          <Text style={[s.section, ar && s.rtl]}>اهتماماتي</Text>
+          <View style={s.tags}>{(profile?.interests || []).map((x:string)=><View key={x} style={s.tag}><Text style={s.tagText}>{x}</Text></View>)}</View>
+        </View>
+        <Pressable style={[s.join,{alignItems:"center",backgroundColor:"#FCE8E8"}]} onPress={async()=>{if(supabase)await supabase.auth.signOut();}}>
+          <Text style={[s.joinText,{color:"#C0392B"}]}>تسجيل الخروج</Text>
+        </Pressable>
       </>}
       <Pressable onPress={onBackHome} style={s.back}><MaterialCommunityIcons name="home-outline" size={18} color={palette.cyan}/><Text style={s.backText}>{ar ? "العودة للرئيسية" : "Back to Home"}</Text></Pressable>
       <Text style={[s.footnote, ar && s.rtl]}>{ar ? "واجهة تجريبية — بعض الوظائف ستُفعّل عند ربط الخادم وقاعدة البيانات." : "Prototype screen — some features will be enabled after backend integration."}</Text>
