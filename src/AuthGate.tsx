@@ -100,10 +100,9 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         if (!data.session) {
           setNotice("الحساب أُنشئ لكن Supabase ما زال يطلب تأكيد البريد. عطّل Confirm email من إعدادات Authentication في Supabase ثم جرّب التسجيل.");
         } else {
+          // The database trigger creates the profile from signup metadata.
+          // Do not update account_type or verification fields from the client.
           setSession(data.session);
-          const { error: profileError } = await supabase.from("profiles").update({ username: username.trim().toLowerCase(), is_private: isPrivate, account_type: accountType, company_name: accountType === "company" ? companyName.trim() : null, company_website: accountType === "company" ? companyWebsite.trim() : null, company_industry: accountType === "company" ? companyIndustry.trim() : null }).eq("id", data.user!.id);
-          if (profileError) throw profileError;
-          if (normalizedBirthDate) await supabase.from("account_private_details").upsert({ user_id: data.user!.id, date_of_birth: normalizedBirthDate });
           setNeedsInterests(true);
         }
       } else {
