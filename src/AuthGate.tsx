@@ -5,6 +5,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { supabase } from "./lib/supabase";
 
 const BLUE = "#1D9BF0";
+let authModeRequest: ((mode: "login" | "signup") => void) | null = null;
+export function requestAuthMode(mode: "login" | "signup") { authModeRequest?.(mode); }
 const interests = ["البرمجة", "الأمن السيبراني", "الذكاء الاصطناعي", "الشبكات", "تطوير التطبيقات", "تصميم UI/UX", "تحليل البيانات", "الحوسبة السحابية", "الألعاب", "التقنية وريادة الأعمال"];
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
@@ -33,6 +35,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
+  useEffect(() => { authModeRequest = (nextMode) => { setMode(nextMode); setNotice(""); setSession(null); setNeedsInterests(false); void supabase?.auth.signOut(); }; return () => { authModeRequest = null; }; }, []);
 
   const loadProfile = async (user: any) => {
     if (!supabase) return;
@@ -213,7 +216,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       {mode === "signup" && <><Field label="تأكيد كلمة المرور" value={confirmPassword} change={setConfirmPassword} placeholder="أعد كتابة كلمة المرور" secure visible={showConfirmPassword} autoComplete="new-password" toggleVisible={() => setShowConfirmPassword(v => !v)}/><Text style={a.hint}>10 خانات على الأقل، حرف كبير وصغير ورقم ورمز.</Text></>}
       {!!notice && <Text style={a.error}>{notice}</Text>}
       <Pressable style={[a.primary, busy && {opacity:0.6}]} onPress={submit} disabled={busy}><Text style={a.primaryText}>{busy ? "لحظة..." : mode === "signup" ? "إنشاء الحساب" : "تسجيل الدخول"}</Text></Pressable>
-      <Pressable onPress={() => { setMode(mode === "signup" ? "login" : "signup"); setNotice(""); }}><Text style={a.switch}>{mode === "signup" ? "عندك حساب؟ سجّل الدخول" : "ما عندك حساب؟ أنشئ حساباً"}</Text></Pressable>
+      <View style={a.authSwitchRow}><Pressable onPress={() => { setMode("login"); setNotice(""); }} style={[a.authSwitchButton,mode==="login"&&a.authSwitchActive]}><Text style={[a.authSwitchText,mode==="login"&&a.authSwitchTextActive]}>تسجيل الدخول لحساب حالي</Text></Pressable><Pressable onPress={() => { setMode("signup"); setNotice(""); }} style={[a.authSwitchButton,mode==="signup"&&a.authSwitchActive]}><Text style={[a.authSwitchText,mode==="signup"&&a.authSwitchTextActive]}>إنشاء حساب جديد</Text></Pressable></View>
       {mode === "login" && <Pressable onPress={resetPassword} disabled={busy}><Text style={a.switch}>نسيت كلمة المرور؟ أرسل رابط استعادة</Text></Pressable>}
     </View>
     <Text style={a.legal}>Tech Community · Connect, learn and build</Text>
@@ -245,7 +248,7 @@ const a = StyleSheet.create({
  passwordWrap:{position:"relative",justifyContent:"center"},passwordInput:{paddingRight:48},eyeButton:{position:"absolute",right:13,height:48,justifyContent:"center"},
  modalBackdrop:{flex:1,backgroundColor:"rgba(0,0,0,0.35)",justifyContent:"flex-end"},dateModal:{backgroundColor:"#FFFFFF",borderTopLeftRadius:22,borderTopRightRadius:22,padding:18,maxHeight:"65%"},modalHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",paddingBottom:12,borderBottomWidth:1,borderBottomColor:"#E6ECF0"},modalTitle:{fontSize:17,fontWeight:"800",color:"#17202A"},optionsList:{marginTop:8},optionItem:{paddingVertical:13,borderBottomWidth:1,borderBottomColor:"#F0F3F5"},optionText:{textAlign:"center",fontSize:15,color:"#33424F"},
  privacyRow:{flexDirection:"row",gap:8},privacy:{flex:1,padding:12,borderWidth:1,borderColor:"#CFD9DE",borderRadius:11,alignItems:"center"},privacyOn:{borderColor:BLUE,backgroundColor:"#E8F5FD"},privacyText:{fontSize:12,color:"#657786",fontWeight:"700"},privacyTextOn:{color:BLUE},
- primary:{height:49,backgroundColor:BLUE,borderRadius:25,alignItems:"center",justifyContent:"center",marginTop:20},primaryText:{color:"#FFFFFF",fontSize:14,fontWeight:"900"},switch:{color:BLUE,textAlign:"center",fontSize:12,fontWeight:"800",marginTop:18},error:{color:"#C0392B",fontSize:12,lineHeight:18,marginTop:12},legal:{textAlign:"center",fontSize:10,color:"#8B98A5",marginTop:22},
+ primary:{height:49,backgroundColor:BLUE,borderRadius:25,alignItems:"center",justifyContent:"center",marginTop:20},primaryText:{color:"#FFFFFF",fontSize:14,fontWeight:"900"},switch:{color:BLUE,textAlign:"center",fontSize:12,fontWeight:"800",marginTop:18},authSwitchRow:{flexDirection:"row",gap:7,marginTop:16},authSwitchButton:{flex:1,minHeight:44,paddingHorizontal:7,borderWidth:1,borderColor:"#CFD9DE",borderRadius:11,alignItems:"center",justifyContent:"center"},authSwitchActive:{borderColor:BLUE,backgroundColor:"#E8F5FD"},authSwitchText:{color:"#657786",fontSize:10,fontWeight:"800",textAlign:"center"},authSwitchTextActive:{color:BLUE},error:{color:"#C0392B",fontSize:12,lineHeight:18,marginTop:12},legal:{textAlign:"center",fontSize:10,color:"#8B98A5",marginTop:22},
  skipButton:{height:46,borderWidth:1,borderColor:"#CFD9DE",borderRadius:24,alignItems:"center",justifyContent:"center",marginTop:10,backgroundColor:"#FFFFFF"},skipText:{color:"#536471",fontSize:13,fontWeight:"800"},
  interests:{flexDirection:"row",flexWrap:"wrap",gap:9,marginTop:20},interest:{paddingVertical:12,paddingHorizontal:13,borderWidth:1,borderColor:"#CFD9DE",borderRadius:22,backgroundColor:"#FFFFFF",flexDirection:"row",alignItems:"center",gap:7},interestOn:{borderColor:BLUE,backgroundColor:"#E8F5FD"},interestText:{fontSize:12,color:"#536471",fontWeight:"700"},interestTextOn:{color:BLUE}
 });
