@@ -68,7 +68,8 @@ function CommunityApp() {
           ]);
           const notMine=rows.filter(p=>p.authorId!==session.user.id).map(p=>({post_id:p.id,user_id:session.user.id}));
           if(notMine.length) await client.from("post_views").upsert(notMine,{onConflict:"post_id,user_id,viewed_on",ignoreDuplicates:true});
-          setPosts(old=>old.map(p=>({...p,likes:(likes||[]).filter((x:any)=>x.post_id===p.id).length,comments:(comments||[]).filter((x:any)=>x.post_id===p.id).length,views:(views||[]).filter((x:any)=>x.post_id===p.id).length,reposts:(reposts||[]).filter((x:any)=>x.post_id===p.id).length,savesCount:(saves||[]).filter((x:any)=>x.post_id===p.id).length})));
+          const {data:metrics}=await client.rpc("get_post_metrics",{post_ids:ids});
+          setPosts(old=>old.map(p=>{const m=(metrics||[]).find((x:any)=>x.post_id===p.id);return {...p,likes:(likes||[]).filter((x:any)=>x.post_id===p.id).length,comments:(comments||[]).filter((x:any)=>x.post_id===p.id).length,views:Number(m?.views||0),reposts:Number(m?.reposts||0),savesCount:Number(m?.saves||0)};}));
           setLiked((mine||[]).map((x:any)=>x.post_id)); setSaved((saves||[]).filter((x:any)=>x.user_id===session.user.id).map((x:any)=>x.post_id)); setReposted((myReposts||[]).map((x:any)=>x.post_id));
         }
         setFeedNotice("");
