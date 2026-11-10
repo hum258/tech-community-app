@@ -96,11 +96,12 @@ function CommunityApp() {
 
   const isArabic = language === "ar";
   const visiblePosts = useMemo(() => posts.filter(post => {
+    if (post.authorId && blockedUserIds.includes(post.authorId)) return false;
     const categoryMatch = activeCategory === "الكل" || post.category === activeCategory;
     const q = query.trim().toLowerCase();
     const queryMatch = !q || [post.title, post.body, post.name, ...post.tags].join(" ").toLowerCase().includes(q);
     return categoryMatch && queryMatch;
-  }), [posts, activeCategory, query]);
+  }), [posts, activeCategory, query, blockedUserIds]);
 
   const labels = isArabic
     ? { home:"الرئيسية", explore:"استكشف", groups:"المجتمعات", messages:"الرسائل", profile:"حسابي", greeting:"مساحة تجمع العقول التقنية", subtitle:"تعلّم، شارك، وابنِ شيئاً مميزاً.", search:"ابحث عن أشخاص أو مشاريع أو مواضيع...", feed:"آخر النقاشات", all:"لك", popular:"الأكثر صلة", compose:"اكتب منشوراً تقنياً...", publish:"نشر", cancel:"إلغاء", empty:"لا توجد منشورات مطابقة حالياً", welcome:"مرحباً بك في مجتمع التقنية", join:"مساحتك للتعلّم والتواصل وبناء المشاريع", login:"المتابعة باستخدام Google", personal:"حساب شخصي", company:"حساب شركة", demo:"معاينة الواجهة — البيانات تجريبية" }
