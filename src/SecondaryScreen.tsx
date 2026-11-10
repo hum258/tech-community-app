@@ -102,6 +102,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     setBusy(false);
     if(result.error){showNotice(result.error.message);return;}
     setFollowingIds(old=>exists?old.filter(x=>x!==targetId):[...old,targetId]);
+    if(viewedProfile?.id===targetId)setViewedStats(old=>({...old,followers:Math.max(0,old.followers+(exists?-1:1))}));
   };
 
   const loadMessages=useCallback(async()=>{
@@ -199,13 +200,14 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     setBusy(true);
     const {data,error}=await supabase.from("profiles").select("id,display_name,username,bio,specialty,avatar_url,cover_url,is_verified,account_type,account_mode,is_private,hide_followers").eq("id",id).maybeSingle();
     if(error||!data){setBusy(false);showNotice(ar?"تعذر فتح الحساب.":"Could not open profile.");return;}
-    const [postsResult,followersResult,followingResult]=await Promise.all([
+    const [postsResult,postCountResult,followersResult,followingResult]=await Promise.all([
       supabase.from("posts").select("id,title,body,image_url,created_at").eq("author_id",id).order("created_at",{ascending:false}).limit(50),
+      supabase.from("posts").select("id",{count:"exact",head:true}).eq("author_id",id),
       supabase.from("profile_follows").select("follower_id",{count:"exact",head:true}).eq("following_id",id),
       supabase.from("profile_follows").select("following_id",{count:"exact",head:true}).eq("follower_id",id)
     ]);
     setViewedProfile(data);setViewedPosts(postsResult.data||[]);
-    setViewedStats({posts:postsResult.data?.length||0,followers:followersResult.count||0,following:followingResult.count||0});setBusy(false);
+    setViewedStats({posts:postCountResult.count||0,followers:followersResult.count||0,following:followingResult.count||0});setBusy(false);
   };
 
   const chooseAvatar=async()=>{
