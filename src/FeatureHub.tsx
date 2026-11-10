@@ -43,6 +43,7 @@ export default function FeatureHub({isArabic,userId}:Props){
     let req:any=supabase.from(table).select("*").order("created_at",{ascending:false}).limit(50);
     if(["lists","drafts","schedule","portfolio"].includes(active))req=req.eq(active==="lists"?"owner_id":"user_id",userId);
     if(active==="polls"||active==="qa"){}
+    if(active==="search")req=supabase.from("posts").select("id,title,body,category,created_at").order("created_at",{ascending:false}).limit(100);
     if(active==="learning")req=supabase.from("learning_paths").select("*").eq("is_published",true).order("created_at",{ascending:false});
     if(active==="badges")req=supabase.from("user_achievements").select("awarded_at,achievements(title,description,icon)").eq("user_id",userId);
     const {data,error}=await req;
@@ -64,6 +65,8 @@ export default function FeatureHub({isArabic,userId}:Props){
     else if(active==="events")result=await supabase.from("events").insert({creator_id:userId,title:title.trim(),description:body,starts_at:new Date(date).toISOString(),location:extra.trim()||"عن بُعد"});
     else if(active==="audio")result=await supabase.from("audio_rooms").insert({host_id:userId,title:title.trim(),starts_at:date?new Date(date).toISOString():new Date().toISOString(),status:"scheduled"});
     else if(active==="polls"){
+      const options=body.split("\\n").map(x=>x.trim()).filter(Boolean).slice(0,8);
+      if(options.length<2){setBusy(false);say(ar?"أضف خيارين على الأقل قبل إنشاء الاستطلاع.":"Add at least two options before creating a poll.");return;}
       const created=await supabase.from("polls").insert({author_id:userId,question:title.trim()}).select("id").single();
       if(created.error)result=created;
       else {const options=body.split("\n").map(x=>x.trim()).filter(Boolean).slice(0,8);result=options.length>=2?await supabase.from("poll_options").insert(options.map((label,position)=>({poll_id:created.data.id,label,position}))):{error:{message:"أضف خيارين على الأقل"}};}
@@ -116,7 +119,7 @@ export default function FeatureHub({isArabic,userId}:Props){
         {active==="badges"?<><Text style={s.itemTitle}>{x.achievements?.title||"Achievement"}</Text><Text style={s.sub}>{x.achievements?.description}</Text></>
         :active==="learning"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.description}</Text><Button label={ar?"تسجيل التقدم":"Track progress"} onPress={()=>saveLearningProgress(x)}/></>
         :active==="polls"?<><Text style={s.itemTitle}>{x.question}</Text><Button label={ar?"صوّت":"Vote"} onPress={()=>vote(x)}/></>
-        :active==="qa"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.body}</Text><Button label={ar?"إجابة عن السؤال":"Answer question"} onPress={()=>setQuestionId(x.id)}/>{x.accepted_answer_id&&<Text style={{color:"#168A62"}}>{ar?"تم اعتماد إجابة":"Accepted answer selected"}</Text>}</>
+        :active==="qa"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.body}</Text>{(x.answers||[]).map((a:any)=><View key={a.id} style={{padding:9,backgroundColor:pale,borderRadius:9,marginTop:5}}><Text style={s.sub}>{a.body}</Text>{x.author_id===userId&&<Button label={ar?"اعتماد هذه الإجابة":"Accept this answer"} onPress={()=>acceptAnswer(x,a)}/>}</View>)}<Button label={ar?"إجابة عن السؤال":"Answer question"} onPress={()=>setQuestionId(x.id)}/>{x.accepted_answer_id&&<Text style={{color:"#168A62"}}>{ar?"تم اعتماد إجابة":"Accepted answer selected"}</Text>}</>
         :active==="events"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.description} · {x.location}</Text><Button label={ar?"سجّل حضورك":"Register"} onPress={()=>joinEvent(x)}/></>
         :active==="audio"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.status} · {new Date(x.starts_at).toLocaleString()}</Text><Button label={ar?"انضم كمستمع":"Join as listener"} onPress={()=>joinRoom(x)}/></>
         :active==="schedule"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.status} · {new Date(x.scheduled_at).toLocaleString()}</Text></>
