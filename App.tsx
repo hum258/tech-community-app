@@ -42,6 +42,7 @@ function CommunityApp() {
   const [replyToComment,setReplyToComment]=useState<string|null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [feedNotice, setFeedNotice] = useState("");
+  const [openPostMenuId, setOpenPostMenuId] = useState<string | number | null>(null);
 
   useEffect(() => {
     const client = supabase;
@@ -162,9 +163,7 @@ function CommunityApp() {
     Alert.alert("حذف المنشور","هل أنت متأكد من حذف هذا المنشور؟",[{text:"إلغاء",style:"cancel"},{text:"حذف",style:"destructive",onPress:async()=>{const {error}=await supabase!.from("posts").delete().eq("id",post.id).eq("author_id",currentUserId);if(error){setFeedNotice("تعذر حذف المنشور: "+error.message);return;}setPosts(old=>old.filter(p=>p.id!==post.id));setFeedNotice("تم حذف المنشور.");}}]);
   };
   const openPostMenu=(post:Post)=>{
-    const actions:any[]=[{text:"إبلاغ عن المنشور",onPress:()=>reportPost(post.id)}];
-    if(post.authorId===currentUserId){actions.unshift({text:post.hideLikeCount?"إظهار عدد الإعجابات":"إخفاء عدد الإعجابات",onPress:()=>toggleLikeVisibility(post)},{text:"حذف المنشور",style:"destructive",onPress:()=>deletePost(post)});}
-    actions.push({text:"إلغاء",style:"cancel"});Alert.alert("خيارات المنشور",undefined,actions);
+    setOpenPostMenuId(current=>current===post.id?null:post.id);
   };
 
   const reportPost=async(id:string|number)=>{
@@ -333,6 +332,15 @@ function CommunityApp() {
                 </View>
                 <Pressable hitSlop={12} style={[styles.moreButton,{position:"absolute",left:12,top:12,zIndex:5,padding:7,borderRadius:10,backgroundColor:"#F5F8FA"}]} onPress={()=>openPostMenu(post)}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#657786"/></Pressable>
               </View>
+              {openPostMenuId===post.id&&<View style={{marginTop:8,marginBottom:8,padding:8,borderWidth:1,borderColor:"#DCE5EC",borderRadius:13,backgroundColor:"#FFFFFF",elevation:3,shadowColor:"#000",shadowOpacity:0.08,shadowRadius:8}}>
+                <Text style={{fontSize:12,fontWeight:"900",color:"#17202A",textAlign:isArabic?"right":"left",paddingHorizontal:8,paddingVertical:5}}>{isArabic?"خيارات المنشور":"Post options"}</Text>
+                <View style={{flexDirection:"row",flexWrap:"wrap",gap:7}}>
+                  <Pressable onPress={()=>{toggleSave(post.id);setOpenPostMenuId(null);}} style={{flexDirection:"row",alignItems:"center",gap:6,padding:10,borderRadius:9,backgroundColor:"#F5F8FA"}}><MaterialCommunityIcons name={isSaved?"bookmark-off-outline":"bookmark-outline"} size={18} color="#1D9BF0"/><Text style={{color:"#17202A",fontSize:12,fontWeight:"700"}}>{isSaved?(isArabic?"إلغاء الحفظ":"Unsave"):(isArabic?"حفظ المنشور":"Save post")}</Text></Pressable>
+                  <Pressable onPress={()=>{sharePost(post);setOpenPostMenuId(null);}} style={{flexDirection:"row",alignItems:"center",gap:6,padding:10,borderRadius:9,backgroundColor:"#F5F8FA"}}><MaterialCommunityIcons name="share-variant-outline" size={18} color="#657786"/><Text style={{color:"#17202A",fontSize:12,fontWeight:"700"}}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
+                  {post.authorId===currentUserId&&<Pressable onPress={()=>{setOpenPostMenuId(null);toggleLikeVisibility(post);}} style={{flexDirection:"row",alignItems:"center",gap:6,padding:10,borderRadius:9,backgroundColor:"#F5F8FA"}}><MaterialCommunityIcons name="heart-off-outline" size={18} color="#657786"/><Text style={{color:"#17202A",fontSize:12,fontWeight:"700"}}>{post.hideLikeCount?(isArabic?"إظهار الإعجابات":"Show likes"):(isArabic?"إخفاء الإعجابات":"Hide likes")}</Text></Pressable>}
+                  {post.authorId===currentUserId?<Pressable onPress={()=>{setOpenPostMenuId(null);deletePost(post);}} style={{flexDirection:"row",alignItems:"center",gap:6,padding:10,borderRadius:9,backgroundColor:"#FCEBED"}}><MaterialCommunityIcons name="trash-can-outline" size={18} color="#D9485F"/><Text style={{color:"#D9485F",fontSize:12,fontWeight:"800"}}>{isArabic?"حذف المنشور":"Delete post"}</Text></Pressable>:<Pressable onPress={()=>{setOpenPostMenuId(null);reportPost(post.id);}} style={{flexDirection:"row",alignItems:"center",gap:6,padding:10,borderRadius:9,backgroundColor:"#F5F8FA"}}><MaterialCommunityIcons name="flag-outline" size={18} color="#D9485F"/><Text style={{color:"#17202A",fontSize:12,fontWeight:"700"}}>{isArabic?"إبلاغ":"Report"}</Text></Pressable>}
+                </View>
+              </View>}
               <View style={styles.postCategory}><Text style={styles.categoryText}>{post.category}</Text></View>
               <Text style={[styles.postTitle, isArabic && styles.rtl]}>{post.title}</Text>
               <Text style={[styles.postBody, isArabic && styles.rtl]}>{post.body}</Text>
