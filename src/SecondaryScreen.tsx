@@ -6,14 +6,14 @@ import { supabase } from "./lib/supabase";
 import { requestAuthMode } from "./AuthGate";
 import FeatureHub from "./FeatureHub";
 
-type Props = { tab: string; isArabic: boolean; onBackHome: () => void; onOpenMessages: () => void };
+type Props = { tab: string; isArabic: boolean; onBackHome: () => void; onOpenMessages: () => void; onOpenComposer: () => void };
 type Profile = { id:string; account_type:"personal"|"company"; account_mode:"personal"|"business"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; hide_followers:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null; avatar_url:string|null; cover_url:string|null; is_verified:boolean; points?:number };
 type Community = { id:string; name:string; description:string; specialty:string };
 type Conversation = { id:string; created_at:string; peerName:string; peerUsername:string };
 
 const C = { blue:"#1D9BF0", ink:"#17202A", muted:"#657786", line:"#E6ECF0", pale:"#F5F8FA", white:"#FFFFFF", green:"#168A62", red:"#D9485F" };
 
-export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}:Props) {
+export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,onOpenComposer}:Props) {
   const ar=isArabic;
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState("");
@@ -147,7 +147,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
 
   useEffect(()=>{if(tab==="profile"||tab==="settings"||tab==="features")loadProfile();if(tab==="explore"){loadTopics();loadTrending();}if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
 
-  const showNotice=(v:string)=>setNotice(v);
+  const showNotice=(v:string)=>setNotice(v);\n  const showVerificationInfo=(companyName?:string|null)=>Alert.alert(ar?"شارة التوثيق":"Verification badge",ar?`تم التوثيق من شركة المجتمع التقني.\\nاسم التطبيق: المجتمع التقني – Tech Community${companyName?"\\nالجهة: "+companyName:""}`:`Verified by Tech Community.\\nApp: Tech Community${companyName?"\\nOrganization: "+companyName:""}`);
   const saveProfile=async()=>{
     if(!supabase||!userId||!displayName.trim()||!username.trim()){showNotice(ar?"الاسم واسم المستخدم مطلوبان.":"Name and username are required.");return;}
     if(!/^[a-zA-Z0-9_]{1,20}$/.test(username.trim())){showNotice(ar?"اسم المستخدم يجب أن يكون من 1 إلى 20 حرفاً أو رقماً أو _.":"Username must be 3–20 letters, numbers or underscores.");return;}
@@ -458,7 +458,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
       <View style={{flexDirection:"row",alignItems:"center",gap:8,marginTop:10}}>
         {viewedProfile.avatar_url?<Image source={{uri:viewedProfile.avatar_url}} style={s.personAvatar}/>:<View style={s.personAvatarFallback}><MaterialCommunityIcons name="account" size={22} color={C.blue}/></View>}
         <View style={{flex:1}}><Text style={s.profileName}>{viewedProfile.display_name}</Text><Text style={s.detail}>@{viewedProfile.username}</Text></View>
-        {viewedProfile.is_verified&&<MaterialCommunityIcons name="check-decagram" size={20} color={viewedProfile.account_type==="company"?"#89939D":C.blue}/>}
+        {viewedProfile.is_verified&&<Pressable onPress={()=>showVerificationInfo(viewedProfile.company_name)}><MaterialCommunityIcons name="check-decagram" size={20} color={viewedProfile.account_type==="company"?"#89939D":C.blue}/></Pressable>}
       </View>
       <Text style={s.bio}>{viewedProfile.bio||""}</Text>
       {!!viewedProfile.specialty&&<Text style={s.detail}>{viewedProfile.specialty}</Text>}
@@ -510,7 +510,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
             <View style={s.cameraBadge}><MaterialCommunityIcons name="camera" size={14} color="#FFFFFF"/></View>
           </Pressable>
           <Pressable onPress={chooseAvatar}><Text style={s.changePhoto}>{ar?"تغيير الصورة الشخصية":"Change profile photo"}</Text></Pressable>
-          <View style={{flexDirection:"row",alignItems:"center",gap:6}}><Text style={s.profileName}>{profile.display_name}</Text>{profile.is_verified&&<MaterialCommunityIcons name="check-decagram" size={20} color={accountMode==="company"?"#89939D":C.blue}/>}</View>
+          <View style={{flexDirection:"row",alignItems:"center",gap:6}}><Text style={s.profileName}>{profile.display_name}</Text>{profile.is_verified&&<Pressable onPress={()=>showVerificationInfo(profile.company_name)}><MaterialCommunityIcons name="check-decagram" size={20} color={accountMode==="company"?"#89939D":C.blue}/></Pressable>}</View>
           <Text style={s.detail}>@{profile.username}</Text>
           <View style={s.statsRow}><View style={s.stat}><Text style={s.statNum}>{postCount}</Text><Text style={s.statLabel}>{ar?"المنشورات":"Posts"}</Text></View><Pressable onPress={()=>openPeopleList("followers")} style={s.stat}><Text style={s.statNum}>{followersCount}</Text><Text style={s.statLabel}>{ar?"المتابعون":"Followers"}</Text></Pressable><Pressable onPress={()=>openPeopleList("following")} style={s.stat}><Text style={s.statNum}>{followingCount}</Text><Text style={s.statLabel}>{ar?"يتابع":"Following"}</Text></Pressable></View>
           <Text style={s.detail}>{accountMode==="business"?(ar?"حساب أعمال":"Business account"):accountMode==="company"?(ar?"حساب شركة":"Company account"):(ar?"حساب شخصي":"Personal account")}</Text><View style={{marginTop:10,padding:12,borderRadius:12,backgroundColor:"#FFF7E6",flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><View style={{flexDirection:"row",alignItems:"center",gap:7}}><MaterialCommunityIcons name="trophy-outline" size={20} color="#C28A24"/><Text style={{color:"#8C641A",fontWeight:"800"}}>{ar?"نقاط المساهمات":"Contribution points"}</Text></View><Text style={{color:"#8C641A",fontSize:17,fontWeight:"900"}}>{profile.points||0}</Text></View>
@@ -524,7 +524,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
           <Text style={s.detail}>{ar?"إصدار التطبيق: 1.0.0":"App version: 1.0.0"}</Text>
           <Text style={s.detail}>{ar?"الخصوصية ونوع الحساب من زر تعديل الملف الشخصي.":"Privacy and account type are managed in Edit profile."}</Text>
         </View>
-        <Text style={[s.section,ar&&s.rtl]}>{ar?"منشوراتي":"My posts"}</Text>
+        <Button label={ar?"نشر منشور من حسابي":"Publish from profile"} onPress={onOpenComposer}/>\n        <Text style={[s.section,ar&&s.rtl]}>{ar?"منشوراتي":"My posts"}</Text>
         {myPosts.map(p=><View key={p.id} style={s.card}>
           <Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}
           <View style={{flexDirection:"row",flexWrap:"nowrap",justifyContent:"space-between",gap:2,marginTop:12,borderTopWidth:1,borderTopColor:C.line,paddingTop:8}}>
