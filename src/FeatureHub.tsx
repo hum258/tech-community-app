@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, PermissionsAndroid, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { supabase } from "./lib/supabase";
 
@@ -34,6 +34,7 @@ export default function FeatureHub({isArabic,userId}:Props){
   const [listId,setListId]=useState("");
   const [questionId,setQuestionId]=useState("");
   const [answerDraft,setAnswerDraft]=useState("");
+  const [speakerRequests,setSpeakerRequests]=useState<Record<string,any[]>>({});
 
   const say=(s:string)=>setNotice(s);
   const load=async()=>{
@@ -50,6 +51,7 @@ export default function FeatureHub({isArabic,userId}:Props){
     setBusy(false);
     if(error){say((ar?"تعذر التحميل: ":"Could not load: ")+error.message);return;}
     setRows(data||[]);
+    if(active==="audio"){const ids=(data||[]).filter((room:any)=>room.host_id===userId).map((room:any)=>room.id);if(ids.length){const {data:requests}=await supabase.from("audio_room_speaker_requests").select("room_id,user_id,status").in("room_id",ids).eq("status","pending");const grouped:Record<string,any[]>={};(requests||[]).forEach((r:any)=>{grouped[r.room_id]=[...(grouped[r.room_id]||[]),r];});setSpeakerRequests(grouped);}else setSpeakerRequests({});}
   };
   useEffect(()=>{if(active)load();},[active]);
   const filtered=useMemo(()=>rows.filter(x=>JSON.stringify(x).toLowerCase().includes(q.toLowerCase())&&(category==="الكل"||x.category===category)),[rows,q,category]);
@@ -97,7 +99,26 @@ export default function FeatureHub({isArabic,userId}:Props){
     setExtra("");
   };
   const joinEvent=async(event:any)=>{const {error}=await supabase!.from("event_registrations").insert({event_id:event.id,user_id:userId});say(error?error.message:(ar?"تم تسجيلك في الفعالية.":"Registered for event."));};
-  const joinRoom=async(room:any)=>{const {error}=await supabase!.from("audio_room_participants").upsert({room_id:room.id,user_id:userId,role:"listener"});say(error?error.message:(ar?"انضممت كمستمع. البث الصوتي المباشر يحتاج خدمة صوت خارجية ولم يُفعّل بعد.":"Joined as listener. Live audio transport still needs an external audio service."));};
+  const joinRoom=async(room:any)=>{const {error}=await supabase!.from("audio_room_participants").upsert({room_id:room.id,user_id:userId,role:"listener"});say(error?error.message:(ar?"انضممت كمستمع.":"Joined as listener."));};
+  const requestToSpeak=async(room:any)=>{
+    if(Platform.OS!=="android"){say(ar?"طلب إذن الميكروفون متاح حالياً على أندرويد فقط.":"Microphone permission flow is currently available on Android only.");return;}
+    const permission=await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,{
+      title:ar?"السماح باستخدام الميكروفون":"Microphone permission",
+      message:ar?"نحتاج إذن الميكروفون قبل إرسال طلب التحدث في المساحة.":"Microphone access is needed before requesting to speak.",
+      buttonPositive:ar?"سماح":"Allow",buttonNegative:ar?"رفض":"Deny"
+    });
+    if(permission!==PermissionsAndroid.RESULTS.GRANTED){say(ar?"لم يتم منح إذن الميكروفون، لذلك لم نرسل طلب التحدث.":"Microphone permission was not granted; no speaking request was sent.");return;}
+    await joinRoom(room);
+    const {error}=await supabase!.from("audio_room_speaker_requests").upsert({room_id:room.id,user_id:userId,status:"pending"});
+    say(error?error.message:(ar?"تم إرسال طلب التحدث إلى مدير المساحة.":"Speaking request sent to the room host."));
+  };
+  const approveSpeaker=async(room:any,request:any)=>{
+    const {error:requestError}=await supabase!.from("audio_room_speaker_requests").update({status:"approved"}).eq("room_id",room.id).eq("user_id",request.user_id);
+    if(requestError){say(requestError.message);return;}
+    const {error}=await supabase!.from("audio_room_participants").update({role:"speaker"}).eq("room_id",room.id).eq("user_id",request.user_id);
+    say(error?error.message:(ar?"تم قبول طلب التحدث. ملاحظة: نقل الصوت المباشر غير مفعّل بعد.":"Speaker request approved. Note: live audio transport is not enabled yet."));
+    await load();
+  };
   const addAnswer=async()=>{if(!supabase||!questionId||!answerDraft.trim())return;const {error}=await supabase.from("answers").insert({question_id:questionId,author_id:userId,body:answerDraft.trim()});say(error?error.message:(ar?"تمت إضافة الإجابة.":"Answer added."));setAnswerDraft("");};
   const acceptAnswer=async(question:any,answer:any)=>{const {error}=await supabase!.from("questions").update({accepted_answer_id:answer.id}).eq("id",question.id).eq("author_id",userId);say(error?error.message:(ar?"تم اعتماد الإجابة.":"Answer accepted."));await load();};
 
@@ -130,7 +151,7 @@ export default function FeatureHub({isArabic,userId}:Props){
         :active==="polls"?<><Text style={s.itemTitle}>{x.question}</Text><Button label={ar?"صوّت":"Vote"} onPress={()=>vote(x)}/></>
         :active==="qa"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.body}</Text>{(x.answers||[]).map((a:any)=><View key={a.id} style={{padding:9,backgroundColor:pale,borderRadius:9,marginTop:5}}><Text style={s.sub}>{a.body}</Text>{x.author_id===userId&&<Button label={ar?"اعتماد هذه الإجابة":"Accept this answer"} onPress={()=>acceptAnswer(x,a)}/>}</View>)}<Button label={ar?"إجابة عن السؤال":"Answer question"} onPress={()=>setQuestionId(x.id)}/>{x.accepted_answer_id&&<Text style={{color:"#168A62"}}>{ar?"تم اعتماد إجابة":"Accepted answer selected"}</Text>}</>
         :active==="events"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.description} · {x.location}</Text><Button label={ar?"سجّل حضورك":"Register"} onPress={()=>joinEvent(x)}/></>
-        :active==="audio"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.status} · {new Date(x.starts_at).toLocaleString()}</Text><Button label={ar?"انضم كمستمع":"Join as listener"} onPress={()=>joinRoom(x)}/></>
+        :active==="audio"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.status} · {new Date(x.starts_at).toLocaleString()}</Text><Button label={ar?"انضم كمستمع":"Join as listener"} onPress={()=>joinRoom(x)}/><Button label={ar?"اطلب التحدث (يتطلب إذن الميكروفون)":"Request to speak (microphone permission required)"} onPress={()=>requestToSpeak(x)}/>{x.host_id===userId&&(speakerRequests[x.id]||[]).map((request:any)=><Button key={request.user_id} label={ar?"قبول طلب متحدث":"Approve speaker request"} onPress={()=>approveSpeaker(x,request)}/>)}</>
         :active==="schedule"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.status} · {new Date(x.scheduled_at).toLocaleString()}</Text></>
         :active==="portfolio"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.item_type} · {x.description}</Text></>
         :active==="drafts"?<><Text style={s.itemTitle}>{x.title||"Draft"}</Text><Text style={s.sub}>{x.body}</Text></>
