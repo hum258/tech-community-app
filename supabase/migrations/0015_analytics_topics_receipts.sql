@@ -70,3 +70,28 @@ drop trigger if exists award_points_for_post on public.posts;
 create trigger award_points_for_post after insert on public.posts for each row execute function private.award_post_points();
 drop trigger if exists award_points_for_comment on public.comments;
 create trigger award_points_for_comment after insert on public.comments for each row execute function private.award_comment_points();
+create table if not exists public.user_mutes (
+ muter_id uuid not null references public.profiles(id) on delete cascade,
+ muted_id uuid not null references public.profiles(id) on delete cascade,
+ created_at timestamptz not null default now(),
+ primary key(muter_id,muted_id),
+ check(muter_id<>muted_id)
+);
+alter table public.user_mutes enable row level security;
+grant select,insert,delete on public.user_mutes to authenticated;
+drop policy if exists "users manage own mutes" on public.user_mutes;
+create policy "users manage own mutes" on public.user_mutes for all to authenticated using(muter_id=(select auth.uid())) with check(muter_id=(select auth.uid()));
+create or replace function public.get_trending_posts()
+returns table(id uuid,title text,body text,category text,created_at timestamptz,author_name text,likes bigint,comments bigint,reposts bigint,score bigint)
+language sql security definer set search_path='' as $$
+ select p.id,p.title,p.body,p.category,p.created_at,pr.display_name,
+ (select count(*) from public.post_likes l where l.post_id=p.id),
+ (select count(*) from public.comments c where c.post_id=p.id),
+ (select count(*) from public.post_reposts r where r.post_id=p.id),
+ ((select count(*) from public.post_likes l where l.post_id=p.id)*2+(select count(*) from public.comments c where c.post_id=p.id)*3+(select count(*) from public.post_reposts r where r.post_id=p.id)*2)
+ from public.posts p join public.profiles pr on pr.id=p.author_id
+ where p.created_at>now()-interval '7 days' and coalesce(pr.is_private,false)=false
+ order by 10 desc,p.created_at desc limit 20
+$$;
+revoke all on function public.get_trending_posts() from public,anon;
+grant execute on function public.get_trending_posts() to authenticated;
