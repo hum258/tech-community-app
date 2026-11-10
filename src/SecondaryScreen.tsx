@@ -361,7 +361,7 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
       (ar?"إعادة النشر: ":"Reposts: ")+(m.reposts||0),
       (ar?"مرات الحفظ: ":"Saves: ")+(m.saves||0),
       (ar?"المشاركات: ":"Shares: ")+(m.shares||0)
-    ].join("\\n"));
+    ].join("\n"));
   };
   const toggleMyPostSave=async(postId:string)=>{
     if(!supabase||!userId)return;
