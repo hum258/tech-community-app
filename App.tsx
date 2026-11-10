@@ -148,7 +148,7 @@ function CommunityApp() {
     const {data,error}=await supabase.from("post_drafts").select("id,title,body,category").eq("user_id",currentUserId).order("updated_at",{ascending:false}).limit(10);
     if(error){setFeedNotice(error.message);return;}
     if(!data?.length){setFeedNotice("لا توجد مسودات محفوظة.");return;}
-    Alert.alert("مسوداتي","اختر مسودة للمتابعة",data.map((d:any)=>({text:(d.title||d.body||"مسودة").slice(0,35),onPress:()=>{setComposerType(d.title?"article":"post");setArticleTitle(d.title||"");setDraft(d.body||"");setPostCategory(d.category||"عام");setComposerOpen(true);}})).concat([{text:"إلغاء",style:"cancel"}]));
+    Alert.alert("مسوداتي","اختر مسودة للمتابعة",[...data.map((d:any)=>({text:(d.title||d.body||"مسودة").slice(0,35),onPress:()=>{setComposerType(d.title?"article":"post");setArticleTitle(d.title||"");setDraft(d.body||"");setPostCategory(d.category||"عام");setComposerOpen(true);}})),{text:"إلغاء",style:"cancel"}] as any);
   };
 
   const publish = async () => {
