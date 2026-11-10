@@ -30,6 +30,22 @@
     "scheme": "techcommunity",
     "plugins": [
       "./plugins/withTechCommunitySplash"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "abf7c551-83dc-4411-a65e-45e475908b1d"
+      }
+    },
+    "owner": "humam21123",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/abf7c551-83dc-4411-a65e-45e475908b1d",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      },
+      "checkAutomatically": "ON_LOAD"
+    }
   }
 }
