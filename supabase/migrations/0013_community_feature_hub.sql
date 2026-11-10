@@ -108,3 +108,22 @@ end $$;
 revoke all on function private.award_community_member() from public, anon, authenticated;
 create trigger award_community_member_after_insert after insert on public.community_members
 for each row execute function private.award_community_member();
+
+-- Speaker requests are separate from listener membership and require host approval.
+create table if not exists public.audio_room_speaker_requests (
+ room_id uuid not null references public.audio_rooms(id) on delete cascade,
+ user_id uuid not null references public.profiles(id) on delete cascade,
+ status text not null default 'pending' check(status in ('pending','approved','rejected')),
+ created_at timestamptz not null default now(),
+ primary key(room_id,user_id)
+);
+alter table public.audio_room_speaker_requests enable row level security;
+grant select,insert,update,delete on public.audio_room_speaker_requests to authenticated;
+create policy "participants and hosts read speaker requests" on public.audio_room_speaker_requests for select to authenticated
+using(user_id=(select auth.uid()) or exists(select 1 from public.audio_rooms r where r.id=room_id and r.host_id=(select auth.uid())));
+create policy "users request speaking for themselves" on public.audio_room_speaker_requests for insert to authenticated
+with check(user_id=(select auth.uid()) and status='pending');
+create policy "hosts review speaker requests" on public.audio_room_speaker_requests for update to authenticated
+using(exists(select 1 from public.audio_rooms r where r.id=room_id and r.host_id=(select auth.uid())))
+with check(exists(select 1 from public.audio_rooms r where r.id=room_id and r.host_id=(select auth.uid())));
+create index if not exists audio_speaker_requests_room_idx on public.audio_room_speaker_requests(room_id,status);
