@@ -618,6 +618,30 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
             <View style={{flexDirection:"row",gap:8}}><Pressable onPress={()=>saveMyPostEdit(p.id)} style={[s.button,{flex:1}]}><Text style={s.buttonText}>{ar?"حفظ التعديل":"Save edit"}</Text></Pressable><Pressable onPress={()=>setEditingMyPost(null)} style={[s.button,{flex:1,backgroundColor:C.muted}]}><Text style={s.buttonText}>{ar?"إلغاء":"Cancel"}</Text></Pressable></View>
           </View>:<Text style={[s.detail,{marginTop:8}]}>{p.body}</Text>}
           {p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}
+          <View style={{marginTop:10,padding:12,borderRadius:13,backgroundColor:isDark?"#122330":"#EEF7FD",borderWidth:1,borderColor:isDark?"#28485D":"#D5EAF8"}}>
+            <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:9}}>
+              <View style={{flexDirection:"row",alignItems:"center",gap:6}}>
+                <MaterialCommunityIcons name="chart-box-outline" size={19} color={C.blue}/>
+                <Text style={{fontSize:13,fontWeight:"900",color:isDark?"#F2F6FA":C.ink}}>{ar?"تحليل المنشور":"Post analytics"}</Text>
+              </View>
+              <Text style={{fontSize:10,color:isDark?"#AFC5D4":C.muted}}>{ar?"أرقام حقيقية":"Live metrics"}</Text>
+            </View>
+            <View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>
+              {[
+                [myPostMetrics[p.id]?.views||0,ar?"مشاهد":"Viewers","eye-outline"],
+                [myPostMetrics[p.id]?.likes||0,ar?"إعجاب":"Likes","heart-outline"],
+                [myPostMetrics[p.id]?.comments||0,ar?"تعليق":"Comments","comment-outline"],
+                [myPostMetrics[p.id]?.reposts||0,ar?"إعادة نشر":"Reposts","repeat"],
+                [myPostMetrics[p.id]?.saves||0,ar?"حفظ":"Saves","bookmark-outline"],
+                [myPostMetrics[p.id]?.shares||0,ar?"مشاركة":"Shares","share-variant-outline"]
+              ].map(([n,label,ic]:any)=><View key={label} style={{minWidth:"29%",flexGrow:1,alignItems:"center",paddingVertical:8,paddingHorizontal:4,borderRadius:9,backgroundColor:isDark?"#1A3445":"#FFFFFF"}}>
+                <MaterialCommunityIcons name={ic} size={17} color={C.blue}/>
+                <Text style={{fontSize:16,fontWeight:"900",color:isDark?"#F2F6FA":C.ink,marginTop:2}}>{n}</Text>
+                <Text style={{fontSize:10,color:isDark?"#B8C9D5":C.muted}}>{label}</Text>
+              </View>)}
+            </View>
+            <Text style={{fontSize:10,lineHeight:15,color:isDark?"#AFC5D4":C.muted,marginTop:8}}>{ar?"المشاهدون = عدد الحسابات المختلفة التي شاهدت المنشور، ويُحتسب كل حساب مرة واحدة.":"Viewers counts distinct accounts that viewed this post, once per account."}</Text>
+          </View>
           <View style={{flexDirection:"row",flexWrap:"wrap",justifyContent:"space-between",gap:7,marginTop:12,borderTopWidth:1,borderTopColor:C.line,paddingTop:10}}>
             <Pressable onPress={()=>toggleMyPostLike(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:likedMyPosts.includes(p.id)?"#FCE8EE":C.pale,borderRadius:10}}><MaterialCommunityIcons name={likedMyPosts.includes(p.id)?"heart":"heart-outline"} size={19} color={likedMyPosts.includes(p.id)?"#D83F69":C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"إعجاب":"Like"}</Text></Pressable>
             <Pressable onPress={()=>setCommentingMyPost(commentingMyPost===p.id?null:p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="comment-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"تعليق":"Comment"}</Text></Pressable>
