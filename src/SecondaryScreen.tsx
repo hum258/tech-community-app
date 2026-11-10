@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "./lib/supabase";
@@ -48,6 +48,10 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
   const [showPeopleList,setShowPeopleList]=useState<"followers"|"following"|null>(null);
   const [peopleList,setPeopleList]=useState<any[]>([]);
   const [myPosts,setMyPosts]=useState<any[]>([]);
+  const [likedMyPosts,setLikedMyPosts]=useState<string[]>([]);
+  const [savedMyPosts,setSavedMyPosts]=useState<string[]>([]);
+  const [commentingMyPost,setCommentingMyPost]=useState<string|null>(null);
+  const [myPostComment,setMyPostComment]=useState("");
   const [viewedProfile,setViewedProfile]=useState<any|null>(null);
   const [viewedPosts,setViewedPosts]=useState<any[]>([]);
   const [viewedStats,setViewedStats]=useState({posts:0,followers:0,following:0});
@@ -237,6 +241,33 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     finally{setBusy(false);}
   };
 
+  const toggleMyPostLike=async(postId:string)=>{
+    if(!supabase||!userId)return;
+    const exists=likedMyPosts.includes(postId);
+    const {error}=exists?await supabase.from("post_likes").delete().eq("post_id",postId).eq("user_id",userId):await supabase.from("post_likes").insert({post_id:postId,user_id:userId});
+    if(error){showNotice(error.message);return;}
+    setLikedMyPosts(old=>exists?old.filter(x=>x!==postId):[...old,postId]);
+  };
+  const toggleMyPostSave=async(postId:string)=>{
+    if(!supabase||!userId)return;
+    const exists=savedMyPosts.includes(postId);
+    const {error}=exists?await supabase.from("post_saves").delete().eq("post_id",postId).eq("user_id",userId):await supabase.from("post_saves").insert({post_id:postId,user_id:userId});
+    if(error){showNotice(error.message);return;}
+    setSavedMyPosts(old=>exists?old.filter(x=>x!==postId):[...old,postId]);
+  };
+  const sendMyPostComment=async(postId:string)=>{
+    if(!supabase||!userId||!myPostComment.trim())return;
+    const {error}=await supabase.from("comments").insert({post_id:postId,author_id:userId,body:myPostComment.trim()});
+    if(error){showNotice(error.message);return;}
+    setMyPostComment("");setCommentingMyPost(null);showNotice(ar?"تم نشر تعليقك.":"Comment posted.");
+  };
+  const deleteMyPost=async(postId:string)=>{
+    Alert.alert(ar?"حذف المنشور":"Delete post",ar?"هل تريد حذف هذا المنشور نهائياً؟":"Delete this post permanently?",[
+      {text:ar?"إلغاء":"Cancel",style:"cancel"},
+      {text:ar?"حذف":"Delete",style:"destructive",onPress:async()=>{const {error}=await supabase!.from("posts").delete().eq("id",postId).eq("author_id",userId);if(error){showNotice(error.message);return;}setMyPosts(old=>old.filter(p=>p.id!==postId));setPostCount(n=>Math.max(0,n-1));}}
+    ]);
+  };
+
   const startConversationWith=async(person:any)=>{
     if(!supabase||!person?.id||!userId)return;
     if(person.id===userId){showNotice(ar?"لا يمكنك مراسلة نفسك.":"You cannot message yourself.");return;}
@@ -408,7 +439,17 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
           <Text style={s.detail}>{ar?"الخصوصية ونوع الحساب من زر تعديل الملف الشخصي.":"Privacy and account type are managed in Edit profile."}</Text>
         </View>
         <Text style={[s.section,ar&&s.rtl]}>{ar?"منشوراتي":"My posts"}</Text>
-        {myPosts.map(p=><View key={p.id} style={s.card}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}</View>)}
+        {myPosts.map(p=><View key={p.id} style={s.card}>
+          <Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}
+          <View style={{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:12,borderTopWidth:1,borderTopColor:C.line,paddingTop:10}}>
+            <Pressable onPress={()=>toggleMyPostLike(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:likedMyPosts.includes(p.id)?"#FCE8EE":C.pale,borderRadius:10}}><MaterialCommunityIcons name={likedMyPosts.includes(p.id)?"heart":"heart-outline"} size={19} color={likedMyPosts.includes(p.id)?"#D83F69":C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"إعجاب":"Like"}</Text></Pressable>
+            <Pressable onPress={()=>setCommentingMyPost(commentingMyPost===p.id?null:p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="comment-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"تعليق":"Comment"}</Text></Pressable>
+            <Pressable onPress={()=>Share.share({message:(p.title||"")+"\n\n"+(p.body||"")})} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="share-variant-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"مشاركة":"Share"}</Text></Pressable>
+            <Pressable onPress={()=>toggleMyPostSave(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:savedMyPosts.includes(p.id)?"#E8F5FD":C.pale,borderRadius:10}}><MaterialCommunityIcons name={savedMyPosts.includes(p.id)?"bookmark":"bookmark-outline"} size={19} color={C.blue}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"حفظ":"Save"}</Text></Pressable>
+            <Pressable onPress={()=>deleteMyPost(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:"#FCEBED",borderRadius:10}}><MaterialCommunityIcons name="trash-can-outline" size={18} color={C.red}/><Text style={{color:C.red,fontWeight:"700",fontSize:12}}>{ar?"حذف":"Delete"}</Text></Pressable>
+          </View>
+          {commentingMyPost===p.id&&<View style={{marginTop:10,gap:8}}><TextInput value={myPostComment} onChangeText={setMyPostComment} placeholder={ar?"اكتب تعليقك هنا...":"Write your comment..."} placeholderTextColor={C.muted} style={[s.input,{marginTop:0}]}/><Pressable onPress={()=>sendMyPostComment(p.id)} style={{backgroundColor:C.blue,borderRadius:10,padding:11,alignItems:"center"}}><Text style={{color:"#fff",fontWeight:"800"}}>{ar?"إرسال التعليق":"Post comment"}</Text></Pressable></View>}
+        </View>)}
         {!myPosts.length&&<Text style={s.empty}>{ar?"لا توجد منشورات بعد. استخدم زر + في الرئيسية للنشر.":"No posts yet. Use the + button on Home to publish."}</Text>}
         <Pressable style={s.signout} onPress={async()=>{await supabase?.auth.signOut();}}><Text style={s.signoutText}>{ar?"تسجيل الخروج":"Sign out"}</Text></Pressable>
       </>}
