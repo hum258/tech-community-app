@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image,
-  StatusBar, Share
+  StatusBar, Share, Alert
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
@@ -28,6 +28,8 @@ function CommunityApp() {
   const [saved, setSaved] = useState<Array<string | number>>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [showComposerChoices, setShowComposerChoices] = useState(false);
+  const [composerType, setComposerType] = useState<"post" | "article">("post");
   const [draft, setDraft] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [commentingPost, setCommentingPost] = useState<string | number | null>(null);
@@ -146,9 +148,10 @@ function CommunityApp() {
       imageUrl = supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
     }
     const content = draft.trim();
-    const {error}=await supabase.from("posts").insert({author_id:currentUserId,category:"عام",title:content.slice(0,80) || "صورة",body:content,tags:[],image_url:imageUrl});
+    const articleTitle=content.split("\
+")[0].slice(0,80) || "مقال جديد";\n    const {error}=await supabase.from("posts").insert({author_id:currentUserId,category:composerType==="article"?"مقال":"عام",title:composerType==="article"?articleTitle:(content.slice(0,80) || "صورة"),body:content,tags:[],image_url:imageUrl});
     if(error){setFeedNotice("تعذر نشر المنشور: "+error.message);return;}
-    setDraft(""); setSelectedImage(null); setComposerOpen(false);
+    setDraft(""); setSelectedImage(null); setComposerOpen(false); setComposerType("post");
     const {data}=await supabase.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,hide_like_count,profiles(display_name,specialty,account_type,avatar_url,is_verified)").order("created_at",{ascending:false}).limit(50);
     if(data)setPosts(data.map((p:any)=>({id:p.id,authorId:p.author_id,hideLikeCount:!!p.hide_like_count,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],imageUrl:p.image_url,avatarUrl:p.profiles?.avatar_url,isVerified:!!p.profiles?.is_verified,accountType:p.profiles?.account_type,likes:0,comments:0,icon:"account-outline",color:"#1D9BF0"})));
     setFeedNotice("");
@@ -206,12 +209,24 @@ function CommunityApp() {
           {!!feedNotice && <Text style={{color:"#F4B860",fontSize:11,marginTop:10}}>{feedNotice}</Text>}
           <View style={styles.sectionHeading}>
             <View><Text style={[styles.sectionTitle, isArabic && styles.rtl]}>{labels.feed}</Text></View>
-            <Pressable style={styles.writeButton} onPress={()=>setComposerOpen(true)}>
+            <Pressable style={styles.writeButton} onPress={()=>setShowComposerChoices(v=>!v)}>
               <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
               <Text style={styles.writeText}>{isArabic?"منشور":"Post"}</Text>
             </Pressable>
           </View>
 
+          {showComposerChoices && <View style={styles.composerChoices}>
+            {[
+              {key:"post",label:"منشور",icon:"text-box-outline"},
+              {key:"video",label:"فيديو",icon:"video-outline"},
+              {key:"article",label:"مقال",icon:"file-document-outline"},
+              {key:"audio",label:"مساحة صوتية",icon:"headphones"}
+            ].map(item=><Pressable key={item.key} style={styles.composerChoice} onPress={()=>{
+              setShowComposerChoices(false);
+              if(item.key==="post"||item.key==="article"){setComposerType(item.key);setComposerOpen(true);}
+              else Alert.alert(item.label,"هذا النوع يحتاج تجهيز ميزة الرفع/البث الفعلي قبل تفعيله، ولن أظهره كأنه يعمل وهو غير جاهز.");
+            }}><MaterialCommunityIcons name={item.icon as any} size={21} color="#1D9BF0"/><Text style={styles.composerChoiceText}>{item.label}</Text></Pressable>)}
+          </View>}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {categories.map((cat, index) => (
               <Pressable key={cat} onPress={()=>setActiveCategory(cat)} style={[styles.chip, activeCategory===cat && styles.chipActive]}>
@@ -221,7 +236,7 @@ function CommunityApp() {
           </ScrollView>
 
           {composerOpen && <View style={styles.composer}>
-            <Text style={[styles.composerTitle, isArabic && styles.rtl]}>{isArabic?"أنشئ منشورك":"Create a post"}</Text>
+            <Text style={[styles.composerTitle, isArabic && styles.rtl]}>{composerType==="article"?(isArabic?"اكتب مقالك":"Write an article"):(isArabic?"أنشئ منشورك":"Create a post")}</Text>
             <TextInput multiline value={draft} onChangeText={setDraft} placeholder={labels.compose} placeholderTextColor="#657786" style={[styles.composerInput, isArabic && styles.rtl]} />
             <Pressable onPress={async ()=>{const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],quality:0.8});if(!result.canceled && result.assets[0])setSelectedImage(result.assets[0].uri);}} style={{flexDirection:"row",alignItems:"center",gap:7,marginTop:10}}>
               <MaterialCommunityIcons name="image-outline" size={21} color="#1D9BF0"/><Text style={{color:"#1D9BF0",fontWeight:"700"}}>إضافة صورة من المعرض</Text>
@@ -316,6 +331,9 @@ const styles = StyleSheet.create({
   sectionHint:{color:"#657786",fontSize:10,marginTop:4,textAlign:"left"},
   writeButton:{height:37,paddingHorizontal:12,borderRadius:12,backgroundColor:"#1D9BF0",flexDirection:"row",alignItems:"center",gap:4},
   writeText:{color:"#FFFFFF",fontSize:12,fontWeight:"900"},
+  composerChoices:{flexDirection:"row",flexWrap:"wrap",gap:9,marginTop:10,marginBottom:6},
+  composerChoice:{width:"48%",minHeight:48,borderWidth:1,borderColor:"#D7E3EC",borderRadius:12,backgroundColor:"#FFFFFF",flexDirection:"row",alignItems:"center",gap:9,paddingHorizontal:12},
+  composerChoiceText:{color:"#33424F",fontSize:13,fontWeight:"800"},
   chips:{gap:8,paddingBottom:13},
   chip:{paddingHorizontal:14,paddingVertical:9,borderRadius:20,backgroundColor:"#F5F8FA",borderWidth:1,borderColor:"#CFD9DE"},
   chipActive:{backgroundColor:"#E8F5FD",borderColor:"#4CAED8"},
@@ -337,11 +355,11 @@ const styles = StyleSheet.create({
   tag:{backgroundColor:"#F5F8FA",paddingHorizontal:8,paddingVertical:5,borderRadius:7},
   tagText:{color:"#6EC6EA",fontSize:10,fontWeight:"700"},
   postDivider:{height:1,backgroundColor:"#E6ECF0",marginTop:14,marginBottom:10},
-  postActions:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:5},
-  action:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:5,minHeight:40,paddingHorizontal:3},
+  postActions:{flexDirection:"row",alignItems:"center",justifyContent:"flex-start",flexWrap:"wrap",columnGap:12,rowGap:4},
+  action:{width:"47%",flexDirection:"row",alignItems:"center",justifyContent:"flex-start",gap:7,minHeight:44,paddingHorizontal:5},
   actionText:{color:"#536471",fontSize:12,fontWeight:"700"},
   likedText:{color:"#F07891"},
-  saveAction:{marginLeft:0,paddingHorizontal:3,minHeight:40,flexDirection:"row",alignItems:"center",gap:5},
+  saveAction:{width:"47%",marginLeft:0,paddingHorizontal:5,minHeight:44,flexDirection:"row",alignItems:"center",gap:7},
   commentPanel:{marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:"#E6ECF0"},
   commentBubble:{backgroundColor:"#F5F8FA",borderRadius:10,padding:9,marginBottom:7},
   commentAuthor:{color:"#78CBEF",fontSize:10,fontWeight:"800",marginBottom:3},
