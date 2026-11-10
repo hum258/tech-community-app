@@ -271,6 +271,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
       </View>
       <Text style={s.bio}>{viewedProfile.bio||""}</Text>
       {!!viewedProfile.specialty&&<Text style={s.detail}>{viewedProfile.specialty}</Text>}
+      <Pressable onPress={()=>toggleFollow(viewedProfile.id)} style={[s.button,followingIds.includes(viewedProfile.id)&&s.secondaryButton]}><Text style={[s.buttonText,followingIds.includes(viewedProfile.id)&&s.secondaryButtonText]}>{followingIds.includes(viewedProfile.id)?(ar?"إلغاء المتابعة":"Unfollow"):(ar?"متابعة":"Follow")}</Text></Pressable>
       {viewedProfile.is_private&&<Text style={s.detail}>{ar?"هذا الحساب خاص.":"This account is private."}</Text>}
       {viewedPosts.map(p=><View key={p.id} style={s.card}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}</View>)}
       {!viewedPosts.length&&<Text style={s.empty}>{ar?"لا توجد منشورات بعد.":"No posts yet."}</Text>}
