@@ -37,7 +37,9 @@ function CommunityApp() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [commentingPost, setCommentingPost] = useState<string | number | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
-  const [postComments, setPostComments] = useState<Record<string, string[]>>({});
+  const [postComments, setPostComments] = useState<Record<string, any[]>>({});
+  const [likedComments,setLikedComments]=useState<string[]>([]);
+  const [replyToComment,setReplyToComment]=useState<string|null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [feedNotice, setFeedNotice] = useState("");
 
@@ -111,7 +113,16 @@ function CommunityApp() {
     if(!supabase)return;
     const {data,error}=await supabase.from("comments").select("id,body,created_at,profiles(display_name)").eq("post_id",postId).order("created_at",{ascending:true}).limit(100);
     if(error){setFeedNotice("تعذر تحميل التعليقات: "+error.message);return;}
-    setPostComments(old=>({...old,[postId]:(data||[]).map((c:any)=>c.body)}));
+    setPostComments(old=>({...old,[postId]:data||[]}));
+    const ids=(data||[]).map((x:any)=>x.id);if(ids.length&&currentUserId){const {data:mine}=await supabase.from("comment_likes").select("comment_id").eq("user_id",currentUserId).in("comment_id",ids);setLikedComments(old=>[...old.filter(x=>!ids.includes(x)),...(mine||[]).map((x:any)=>x.comment_id)]);}
+  };
+
+  const toggleCommentLike=async(commentId:string)=>{
+    if(!supabase||!currentUserId)return;
+    const exists=likedComments.includes(commentId);
+    const {error}=exists?await supabase.from("comment_likes").delete().eq("comment_id",commentId).eq("user_id",currentUserId):await supabase.from("comment_likes").insert({comment_id:commentId,user_id:currentUserId});
+    if(error){setFeedNotice(error.message);return;}
+    setLikedComments(old=>exists?old.filter(x=>x!==commentId):[...old,commentId]);
   };
 
   const toggleLike = async (id:string | number) => {
@@ -320,10 +331,10 @@ function CommunityApp() {
                 <Pressable style={styles.xAction} onPress={()=>Alert.alert(isArabic?"تحليلات المنشور":"Post analytics",[(isArabic?"المشاهدات: ":"Views: ")+(post.views||0),(isArabic?"الإعجابات: ":"Likes: ")+(post.likes||0),(isArabic?"التعليقات: ":"Comments: ")+(post.comments||0),(isArabic?"إعادات النشر: ":"Reposts: ")+(post.reposts||0),(isArabic?"مرات الحفظ: ":"Saves: ")+(post.savesCount||0)].join("\\n"))}><MaterialCommunityIcons name="chart-box-outline" size={20} color="#657786"/></Pressable>
               </View>
               {commentingPost===post.id && <View style={styles.commentPanel}>
-                {(postComments[String(post.id)]||[]).map((comment,index)=><View key={index} style={styles.commentBubble}><Text style={styles.commentAuthor}>{isArabic?"أنت":"You"}</Text><Text style={[styles.commentBody,isArabic&&styles.rtl]}>{comment}</Text></View>)}
+                {(postComments[String(post.id)]||[]).map((comment:any)=><View key={comment.id} style={styles.commentBubble}><Text style={styles.commentAuthor}>{comment.profiles?.display_name|| (isArabic?"عضو":"Member")}</Text><Text style={[styles.commentBody,isArabic&&styles.rtl]}>{comment.body}</Text><View style={{flexDirection:"row",gap:16,marginTop:6}}><Pressable onPress={()=>toggleCommentLike(comment.id)} style={{flexDirection:"row",alignItems:"center",gap:4}}><MaterialCommunityIcons name={likedComments.includes(comment.id)?"heart":"heart-outline"} size={15} color={likedComments.includes(comment.id)?"#D83F69":"#657786"}/><Text style={{fontSize:11,color:"#657786"}}>{likedComments.includes(comment.id)?(isArabic?"أعجبك":"Liked"):(isArabic?"إعجاب":"Like")}</Text></Pressable><Pressable onPress={()=>{setReplyToComment(comment.id);setCommentDraft("");}}><Text style={{fontSize:11,color:"#1D9BF0",fontWeight:"700"}}>{isArabic?"رد":"Reply"}</Text></Pressable></View></View>)}
                 <View style={styles.commentComposer}>
-                  <TextInput value={commentDraft} onChangeText={setCommentDraft} placeholder={isArabic?"اكتب تعليقاً...":"Write a comment..."} placeholderTextColor="#7188A2" style={[styles.commentInput,isArabic&&styles.rtl]}/>
-                  <Pressable onPress={async ()=>{if(!commentDraft.trim())return;if(!supabase||!currentUserId||typeof post.id!=="string"){setFeedNotice("سجّل الدخول لإضافة تعليق.");return;}const value=commentDraft.trim();const {error}=await supabase.from("comments").insert({post_id:post.id,author_id:currentUserId,body:value});if(error){setFeedNotice("تعذر إضافة التعليق: "+error.message);return;}setPostComments(old=>({...old,[String(post.id)]:[...(old[String(post.id)]||[]),value]}));setPosts(old=>old.map(p=>p.id===post.id?{...p,comments:p.comments+1}:p));setCommentDraft("");}} style={styles.commentSend}><MaterialCommunityIcons name="send" size={17} color="#FFFFFF"/></Pressable>
+                  <TextInput value={commentDraft} onChangeText={setCommentDraft} placeholder={replyToComment?(isArabic?"اكتب ردك...":"Write a reply..."):(isArabic?"اكتب تعليقاً...":"Write a comment...")} placeholderTextColor="#7188A2" style={[styles.commentInput,isArabic&&styles.rtl]}/>
+                  <Pressable onPress={async ()=>{if(!commentDraft.trim())return;if(!supabase||!currentUserId||typeof post.id!=="string"){setFeedNotice("سجّل الدخول لإضافة تعليق.");return;}const value=commentDraft.trim();const {data:created,error}=await supabase.from("comments").insert({post_id:post.id,author_id:currentUserId,body:value,parent_comment_id:replyToComment}).select("id,body,created_at,profiles(display_name)").single();if(error){setFeedNotice("تعذر إضافة التعليق: "+error.message);return;}setPostComments(old=>({...old,[String(post.id)]:[...(old[String(post.id)]||[]),created||{body:value,id:String(Date.now()),profiles:{display_name:"أنت"}}]}));setReplyToComment(null);setPosts(old=>old.map(p=>p.id===post.id?{...p,comments:p.comments+1}:p));setCommentDraft("");}} style={styles.commentSend}><MaterialCommunityIcons name="send" size={17} color="#FFFFFF"/></Pressable>
                 </View>
               </View>}
             </View>;
