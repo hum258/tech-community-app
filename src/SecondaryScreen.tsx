@@ -617,8 +617,6 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
           </View>
           {commentingMyPost===p.id&&<View style={{marginTop:10,gap:8}}><TextInput value={myPostComment} onChangeText={setMyPostComment} placeholder={ar?"اكتب تعليقك هنا...":"Write your comment..."} placeholderTextColor={C.muted} style={[s.input,{marginTop:0}]}/><Pressable onPress={()=>sendMyPostComment(p.id)} style={{backgroundColor:C.blue,borderRadius:10,padding:11,alignItems:"center"}}><Text style={{color:"#fff",fontWeight:"800"}}>{ar?"إرسال التعليق":"Post comment"}</Text></Pressable></View>}
         </View>)}
-تعليق":"Post comment"}</Text></Pressable></View>}
-        </View>)}
         {!myPosts.length&&<Text style={s.empty}>{ar?"لا توجد منشورات بعد. استخدم زر + في الرئيسية للنشر.":"No posts yet. Use the + button on Home to publish."}</Text>}
         <Pressable style={s.signout} onPress={async()=>{await supabase?.auth.signOut();}}><Text style={s.signoutText}>{ar?"تسجيل الخروج":"Sign out"}</Text></Pressable>
       </>}
