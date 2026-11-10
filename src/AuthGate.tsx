@@ -103,7 +103,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     let normalizedBirthDate: string | null = null;
     if (mode === "signup") {
       if (!name.trim() || !username.trim() || !email.trim()) { setNotice("أكمل الاسم واسم المستخدم والبريد الإلكتروني."); return; }
-      if (!/^[a-zA-Z0-9_]{3,20}$/.test(username.trim())) { setNotice("اسم المستخدم يجب أن يكون 3–20 حرفاً إنجليزياً أو رقماً أو _ فقط."); return; }
+      if (!/^[a-zA-Z0-9_]{1,20}$/.test(username.trim())) { setNotice("اسم المستخدم يجب أن يكون من 1 إلى 20 حرفاً إنجليزياً أو رقماً أو _ فقط."); return; }
       if (birthDate) { normalizedBirthDate = normalizeBirthDate(birthDate); if (!normalizedBirthDate) { setNotice("اختر تاريخ ميلاد صحيحاً، أو اتركه فارغاً."); return; } }
       if (!strongPassword(password)) { setNotice("كلمة المرور ضعيفة. استخدم 10 خانات على الأقل مع حرف كبير وصغير ورقم ورمز."); return; }
       if (password !== confirmPassword) { setNotice("كلمتا المرور غير متطابقتين."); return; }
@@ -210,7 +210,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           <Pressable style={[a.privacy, isPrivate && a.privacyOn]} onPress={() => setIsPrivate(true)}><Text style={[a.privacyText, isPrivate && a.privacyTextOn]}>خاص</Text></Pressable>
         </View>
       </>}
-      {mode === "login" && <Field label="البريد الإلكتروني" value={email} change={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none"/>}
+      {mode === "login" && <Field label="البريد الإلكتروني" value={email} change={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email"/>}
       <Field label="كلمة المرور" value={password} change={setPassword} placeholder="كلمة مرور قوية" secure visible={showPassword} autoComplete={mode==="signup"?"new-password":"current-password"} toggleVisible={() => setShowPassword(v => !v)}/>
       {mode === "signup" && <Pressable onPress={() => { const chars="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%"; let generated=""; for(let i=0;i<16;i++) generated+=chars[Math.floor(Math.random()*chars.length)]; setPassword(generated); setConfirmPassword(generated); setShowPassword(true); setShowConfirmPassword(true); }} style={{alignSelf:"flex-start",paddingVertical:8}}><Text style={{color:BLUE,fontSize:12,fontWeight:"800"}}>اقترح كلمة مرور قوية</Text></Pressable>}
       {mode === "signup" && <><Field label="تأكيد كلمة المرور" value={confirmPassword} change={setConfirmPassword} placeholder="أعد كتابة كلمة المرور" secure visible={showConfirmPassword} autoComplete="new-password" toggleVisible={() => setShowConfirmPassword(v => !v)}/><Text style={a.hint}>10 خانات على الأقل، حرف كبير وصغير ورقم ورمز.</Text></>}
