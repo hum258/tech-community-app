@@ -59,7 +59,6 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
   const [myPosts,setMyPosts]=useState<any[]>([]);
   const [likedMyPosts,setLikedMyPosts]=useState<string[]>([]);
   const [repostedMyPosts,setRepostedMyPosts]=useState<string[]>([]);
-  const [analyticsPostId,setAnalyticsPostId]=useState<string|null>(null);
   const [savedMyPosts,setSavedMyPosts]=useState<string[]>([]);
   const [commentingMyPost,setCommentingMyPost]=useState<string|null>(null);
   const [myPostComment,setMyPostComment]=useState("");
@@ -625,6 +624,10 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
           {!!profile.location&&<Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>📍 {profile.location}</Text>}
           {!!profile.skills?.length&&<View style={{marginTop:8}}><Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"المهارات":"Skills"}</Text><View style={s.tags}>{profile.skills.map(x=><Text key={x} style={s.tag}>{x}</Text>)}</View></View>}
           {!!profile.languages?.length&&<Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{ar?"اللغات: ":"Languages: "}{profile.languages.join("، ")}</Text>}
+          {!!profile.certifications?.trim()&&<View style={{marginTop:8}}><Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"الشهادات":"Certifications"}</Text><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{profile.certifications}</Text></View>}
+          {!!profile.projects?.trim()&&<View style={{marginTop:8}}><Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"المشاريع":"Projects"}</Text><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{profile.projects}</Text></View>}
+          {!!profile.experience?.trim()&&<View style={{marginTop:8}}><Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"الخبرات":"Experience"}</Text><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{profile.experience}</Text></View>}
+          {!!profile.education?.trim()&&<View style={{marginTop:8}}><Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"التعليم":"Education"}</Text><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{profile.education}</Text></View>}
           {!!profile.website_url&&<Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>Website: {profile.website_url}</Text>}
           {!!profile.github_url&&<Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>GitHub: {profile.github_url}</Text>}
         </View>
