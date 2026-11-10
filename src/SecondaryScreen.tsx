@@ -177,12 +177,16 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
   const openPeopleList=async(kind:"followers"|"following")=>{
     if(!supabase||!userId)return;
     setBusy(true);
+    if(kind==="followers"&&profile?.hide_followers){setBusy(false);showNotice(ar?"قائمة المتابعين مخفية في إعداداتك.":"Your followers list is hidden in settings.");return;}
     const col=kind==="followers"?"follower_id":"following_id";
     const filter=kind==="followers"?"following_id":"follower_id";
-    const {data,error}=await supabase.from("profile_follows").select(col+",profiles!profile_follows_"+col+"_fkey(id,display_name,username,avatar_url,is_verified,account_type)").eq(filter,userId);
+    const {data,error}=await supabase.from("profile_follows").select(col).eq(filter,userId);
+    if(error){setBusy(false);showNotice(error.message);return;}
+    const ids=(data||[]).map((x:any)=>x[col]);
+    const {data:profiles,error:profileError}=ids.length?await supabase.from("profiles").select("id,display_name,username,avatar_url,is_verified,account_type").in("id",ids):{data:[],error:null};
     setBusy(false);
-    if(error){showNotice(error.message);return;}
-    setPeopleList((data||[]).map((x:any)=>x.profiles).filter(Boolean));
+    if(profileError){showNotice(profileError.message);return;}
+    setPeopleList(profiles||[]);
     setShowPeopleList(kind);
   };
 
@@ -289,6 +293,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     </>}
 
     {tab==="groups"&&<>
+      <View style={s.card}><Text style={s.cardTitle}>{ar?"إنشاء مجتمع جديد":"Create a community"}</Text><Field label={ar?"اسم المجتمع":"Community name"} value={newCommunityName} onChange={setNewCommunityName}/><Field label={ar?"الوصف":"Description"} value={newCommunityDescription} onChange={setNewCommunityDescription} multiline/><Field label={ar?"التخصص":"Topic"} value={newCommunitySpecialty} onChange={setNewCommunitySpecialty} placeholder={ar?"مثلاً: الأمن السيبراني":"e.g. Cybersecurity"}/><Button label={ar?"إنشاء المجتمع":"Create community"} onPress={createCommunity}/></View>
       <Text style={[s.detail,ar&&s.rtl]}>{ar?"انضم إلى مجتمعك المفضل، وسيبقى انضمامك محفوظاً بحسابك.":"Join a community; your membership is saved to your account."}</Text>
       {communities.map(x=>{const yes=joined.includes(x.id);return <View key={x.id} style={s.card}><Text style={[s.cardTitle,ar&&s.rtl]}>{x.name}</Text><Text style={[s.detail,ar&&s.rtl]}>{x.description}</Text><View style={s.cardFoot}><Text style={s.tag}>{x.specialty}</Text><Pressable onPress={()=>toggleCommunity(x.id)} style={[s.smallButton,yes&&s.secondaryButton]}><Text style={[s.smallButtonText,yes&&s.secondaryButtonText]}>{yes?(ar?"مغادرة":"Leave"):(ar?"انضمام":"Join")}</Text></Pressable></View></View>})}
     </>}
@@ -296,6 +301,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     {!viewedProfile&&tab==="profile"&&<>
       {!profile?<ActivityIndicator color={C.blue}/>:<>
         <View style={s.profileCard}>
+          <Pressable onPress={chooseCover} style={{width:"100%"}}>{profile.cover_url?<Image source={{uri:profile.cover_url}} style={s.coverImage}/>:<View style={s.coverPlaceholder}><Text style={s.detail}>{ar?"إضافة صورة غلاف":"Add cover photo"}</Text></View>}</Pressable>
           <Pressable onPress={chooseAvatar} disabled={busy} style={s.avatarPress}>
             {profile.avatar_url?<Image source={{uri:profile.avatar_url}} style={s.avatarImage} />:<View style={s.avatar}><MaterialCommunityIcons name={profile.account_type==="company"?"domain":"account"} size={31} color={C.blue}/></View>}
             <View style={s.cameraBadge}><MaterialCommunityIcons name="camera" size={14} color="#FFFFFF"/></View>
