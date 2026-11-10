@@ -58,6 +58,10 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
   const [viewedProfile,setViewedProfile]=useState<any|null>(null);
   const [viewedPosts,setViewedPosts]=useState<any[]>([]);
   const [viewedLikedPostIds,setViewedLikedPostIds]=useState<string[]>([]);
+  const [viewedSavedPostIds,setViewedSavedPostIds]=useState<string[]>([]);
+  const [viewedPostComments,setViewedPostComments]=useState<Record<string,any[]>>({});
+  const [commentingViewedPost,setCommentingViewedPost]=useState<string|null>(null);
+  const [viewedCommentDraft,setViewedCommentDraft]=useState("");
   const [viewedPostMetrics,setViewedPostMetrics]=useState<Record<string,any>>({});
   const [viewedStats,setViewedStats]=useState({posts:0,followers:0,following:0});
   const [settingsSection,setSettingsSection]=useState<string|null>(null);
@@ -235,16 +239,18 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
     ]);
     const ids=(postsResult.data||[]).map((p:any)=>p.id);
     if(ids.length&&userId){
-      const [{data:allLikes},{data:mine},{data:metrics}]=await Promise.all([
+      const [{data:allLikes},{data:mine},{data:metrics},{data:savedMine}]=await Promise.all([
         supabase.from("post_likes").select("post_id").in("post_id",ids),
         supabase.from("post_likes").select("post_id").eq("user_id",userId).in("post_id",ids),
-        supabase.rpc("get_post_metrics",{post_ids:ids})
+        supabase.rpc("get_post_metrics",{post_ids:ids}),
+        supabase.from("post_saves").select("post_id").eq("user_id",userId).in("post_id",ids)
       ]);
       const map:Record<string,any>={};
       ids.forEach((postId:string)=>map[postId]={likes:(allLikes||[]).filter((x:any)=>x.post_id===postId).length});
       (metrics||[]).forEach((m:any)=>map[m.post_id]={...map[m.post_id],...m});
-      setViewedPostMetrics(map);setViewedLikedPostIds((mine||[]).map((x:any)=>x.post_id));
-    }else{setViewedPostMetrics({});setViewedLikedPostIds([]);}
+      setViewedPostMetrics(map);setViewedLikedPostIds((mine||[]).map((x:any)=>x.post_id));setViewedSavedPostIds((savedMine||[]).map((x:any)=>x.post_id));
+    }else{setViewedPostMetrics({});setViewedLikedPostIds([]);setViewedSavedPostIds([]);}
+    setViewedPostComments({});setCommentingViewedPost(null);setViewedCommentDraft("");
     setViewedProfile(data);setViewedPosts(postsResult.data||[]);
     setViewedStats({posts:postCountResult.count||0,followers:followersResult.count||0,following:followingResult.count||0});setBusy(false);
   };
@@ -256,6 +262,45 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
     setViewedPostMetrics(old=>({...old,[postId]:{...old[postId],likes:Math.max(0,Number(old[postId]?.likes||0)+(exists?-1:1))}}));
     const {error}=exists?await supabase.from("post_likes").delete().eq("post_id",postId).eq("user_id",userId):await supabase.from("post_likes").insert({post_id:postId,user_id:userId});
     if(error){setViewedLikedPostIds(old=>exists?[...old,postId]:old.filter(x=>x!==postId));setViewedPostMetrics(old=>({...old,[postId]:{...old[postId],likes:Math.max(0,Number(old[postId]?.likes||0)+(exists?1:-1))}}));showNotice(error.message);}
+  };
+
+  const loadViewedPostComments=async(postId:string)=>{
+    if(!supabase)return;
+    const {data,error}=await supabase.from("comments").select("id,body,created_at,profiles(display_name,username)").eq("post_id",postId).order("created_at",{ascending:true}).limit(100);
+    if(error){showNotice((ar?"تعذر تحميل التعليقات: ":"Could not load comments: ")+error.message);return;}
+    setViewedPostComments(old=>({...old,[postId]:data||[]}));
+  };
+  const sendViewedPostComment=async(postId:string)=>{
+    const body=viewedCommentDraft.trim();
+    if(!supabase||!userId||!body)return;
+    const {data,error}=await supabase.from("comments").insert({post_id:postId,author_id:userId,body}).select("id,body,created_at,profiles(display_name,username)").single();
+    if(error){showNotice((ar?"تعذر إضافة التعليق: ":"Could not post comment: ")+error.message);return;}
+    setViewedPostComments(old=>({...old,[postId]:[...(old[postId]||[]),data]}));
+    setViewedPostMetrics(old=>({...old,[postId]:{...old[postId],comments:Number(old[postId]?.comments||0)+1}}));
+    setViewedCommentDraft("");showNotice(ar?"تم نشر تعليقك.":"Comment posted.");
+  };
+  const toggleViewedPostSave=async(postId:string)=>{
+    if(!supabase||!userId)return;
+    const exists=viewedSavedPostIds.includes(postId);
+    const result=exists?await supabase.from("post_saves").delete().eq("post_id",postId).eq("user_id",userId):await supabase.from("post_saves").insert({post_id:postId,user_id:userId});
+    if(result.error){showNotice((ar?"تعذر تحديث المحفوظات: ":"Could not update saved posts: ")+result.error.message);return;}
+    setViewedSavedPostIds(old=>exists?old.filter(x=>x!==postId):[...old,postId]);
+    setViewedPostMetrics(old=>({...old,[postId]:{...old[postId],saves:Math.max(0,Number(old[postId]?.saves||0)+(exists?-1:1))}}));
+    showNotice(exists?(ar?"أزيل من المحفوظات.":"Removed from saved posts."):(ar?"تم حفظ المنشور.":"Post saved."));
+  };
+  const shareViewedPost=async(post:any)=>{
+    if(supabase&&userId){const {error}=await supabase.from("post_shares").insert({post_id:post.id,user_id:userId});if(error)showNotice((ar?"تعذر تسجيل المشاركة: ":"Could not record share: ")+error.message);else setViewedPostMetrics(old=>({...old,[post.id]:{...old[post.id],shares:Number(old[post.id]?.shares||0)+1}}));}
+    await Share.share({message:(post.title||"")+"\\n\\n"+(post.body||"")});
+  };
+  const openViewedPostMenu=(post:any)=>{
+    const saved=viewedSavedPostIds.includes(post.id);
+    Alert.alert(ar?"خيارات المنشور":"Post options",undefined,[
+      {text:ar?"التعليق":"Comment",onPress:()=>{setCommentingViewedPost(post.id);loadViewedPostComments(post.id);}},
+      {text:saved?(ar?"إزالة من المحفوظات":"Remove saved"):(ar?"حفظ المنشور":"Save post"),onPress:()=>toggleViewedPostSave(post.id)},
+      {text:ar?"مشاركة":"Share",onPress:()=>shareViewedPost(post)},
+      {text:ar?"إبلاغ":"Report",onPress:()=>Alert.alert(ar?"الإبلاغ عن المنشور":"Report post",ar?"هل تريد إرسال بلاغ عن هذا المنشور؟":"Report this post?",[{text:ar?"إلغاء":"Cancel",style:"cancel"},{text:ar?"إبلاغ":"Report",style:"destructive",onPress:async()=>{const {error}=await supabase!.from("content_reports").insert({reporter_id:userId,post_id:post.id,reason:ar?"إبلاغ من الملف الشخصي":"Reported from profile"});showNotice(error?error.message:(ar?"تم إرسال البلاغ.":"Report submitted."));}}])},
+      {text:ar?"إلغاء":"Cancel",style:"cancel"}
+    ]);
   };
 
   const chooseAvatar=async()=>{
@@ -474,7 +519,27 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
   <Pressable onPress={()=>startConversationWith(viewedProfile)} style={[s.button,{flex:1,backgroundColor:C.ink}]}><Text style={s.buttonText}>{ar?"مراسلة":"Message"}</Text></Pressable>
       </View>
       {viewedProfile.is_private&&<Text style={s.detail}>{ar?"هذا الحساب خاص.":"This account is private."}</Text>}
-      {viewedPosts.map(p=><View key={p.id} style={s.card}>{editingMyPost===p.id?<View style={{gap:8}}><TextInput value={editingMyPostTitle} onChangeText={setEditingMyPostTitle} placeholder={ar?"عنوان المنشور":"Post title"} style={s.input}/><TextInput value={editingMyPostBody} onChangeText={setEditingMyPostBody} multiline placeholder={ar?"محتوى المنشور":"Post content"} style={[s.input,{minHeight:90,textAlignVertical:"top"}]}/><View style={{flexDirection:"row",gap:8}}><Pressable onPress={()=>saveMyPostEdit(p.id)} style={[s.button,{flex:1}]}><Text style={s.buttonText}>{ar?"حفظ التعديل":"Save edit"}</Text></Pressable><Pressable onPress={()=>setEditingMyPost(null)} style={[s.button,{flex:1,backgroundColor:C.muted}]}><Text style={s.buttonText}>{ar?"إلغاء":"Cancel"}</Text></Pressable></View></View>:<><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text></>}{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}<View style={{flexDirection:"row",justifyContent:"space-around",paddingVertical:9,backgroundColor:C.pale,borderRadius:10,marginTop:8}}>{[[viewedPostMetrics[p.id]?.views||0,ar?"مشاهدة":"Views","eye"],[viewedPostMetrics[p.id]?.likes||0,ar?"إعجاب":"Likes","heart"],[viewedPostMetrics[p.id]?.comments||0,ar?"تعليق":"Comments","comment-outline"],[viewedPostMetrics[p.id]?.reposts||0,ar?"إعادة نشر":"Reposts","repeat"],[viewedPostMetrics[p.id]?.saves||0,ar?"حفظ":"Saves","bookmark-outline"],[viewedPostMetrics[p.id]?.shares||0,ar?"مشاركة":"Shares","share-variant-outline"]].map(([n,label,ic]:any)=><View key={label} style={{alignItems:"center",gap:2}}><MaterialCommunityIcons name={ic} size={16} color={C.muted}/><Text style={{fontSize:12,fontWeight:"900",color:C.ink}}>{n}</Text><Text style={{fontSize:9,color:C.muted}}>{label}</Text></View>)}</View><Pressable onPress={()=>toggleViewedPostLike(p.id)} style={{flexDirection:"row",alignItems:"center",gap:7,marginTop:10,padding:9,backgroundColor:viewedLikedPostIds.includes(p.id)?"#FCE8EE":C.pale,borderRadius:10,alignSelf:"flex-start"}}><MaterialCommunityIcons name={viewedLikedPostIds.includes(p.id)?"heart":"heart-outline"} size={18} color={viewedLikedPostIds.includes(p.id)?"#D83F69":C.muted}/><Text style={{color:C.ink,fontWeight:"800"}}>{ar?"إعجاب":"Like"} · {viewedPostMetrics[p.id]?.likes||0}</Text></Pressable></View>)}
+      {viewedPosts.map(p=><View key={p.id} style={s.card}>
+      <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}>
+        <View style={{flex:1}}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{new Date(p.created_at).toLocaleString()}</Text></View>
+        <Pressable onPress={()=>openViewedPostMenu(p)} hitSlop={10} style={{padding:9,borderRadius:10,backgroundColor:C.pale}}><MaterialCommunityIcons name="dots-horizontal" size={21} color={C.ink}/></Pressable>
+      </View>
+      {editingMyPost===p.id?<View style={{gap:8}}><TextInput value={editingMyPostTitle} onChangeText={setEditingMyPostTitle} placeholder={ar?"عنوان المنشور":"Post title"} style={s.input}/><TextInput value={editingMyPostBody} onChangeText={setEditingMyPostBody} multiline placeholder={ar?"محتوى المنشور":"Post content"} style={[s.input,{minHeight:90,textAlignVertical:"top"}]}/><View style={{flexDirection:"row",gap:8}}><Pressable onPress={()=>saveMyPostEdit(p.id)} style={[s.button,{flex:1}]}><Text style={s.buttonText}>{ar?"حفظ التعديل":"Save edit"}</Text></Pressable><Pressable onPress={()=>setEditingMyPost(null)} style={[s.button,{flex:1,backgroundColor:C.muted}]}><Text style={s.buttonText}>{ar?"إلغاء":"Cancel"}</Text></Pressable></View></View>:<Text style={s.detail}>{p.body}</Text>}
+      {p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}
+      <View style={{flexDirection:"row",justifyContent:"space-around",paddingVertical:9,backgroundColor:C.pale,borderRadius:10,marginTop:8}}>
+        {[[viewedPostMetrics[p.id]?.views||0,ar?"مشاهدة":"Views","eye"],[viewedPostMetrics[p.id]?.likes||0,ar?"إعجاب":"Likes","heart"],[viewedPostMetrics[p.id]?.comments||0,ar?"تعليق":"Comments","comment-outline"],[viewedPostMetrics[p.id]?.reposts||0,ar?"إعادة نشر":"Reposts","repeat"],[viewedPostMetrics[p.id]?.saves||0,ar?"حفظ":"Saves","bookmark-outline"],[viewedPostMetrics[p.id]?.shares||0,ar?"مشاركة":"Shares","share-variant-outline"]].map(([n,label,ic]:any)=><View key={label} style={{alignItems:"center",gap:2}}><MaterialCommunityIcons name={ic} size={16} color={C.muted}/><Text style={{fontSize:12,fontWeight:"900",color:C.ink}}>{n}</Text><Text style={{fontSize:9,color:C.muted}}>{label}</Text></View>)}
+      </View>
+      <View style={{flexDirection:"row",justifyContent:"space-around",flexWrap:"wrap",gap:7,marginTop:10}}>
+        <Pressable onPress={()=>toggleViewedPostLike(p.id)} style={{flexDirection:"row",alignItems:"center",gap:6,padding:9,backgroundColor:viewedLikedPostIds.includes(p.id)?"#FCE8EE":C.pale,borderRadius:10}}><MaterialCommunityIcons name={viewedLikedPostIds.includes(p.id)?"heart":"heart-outline"} size={18} color={viewedLikedPostIds.includes(p.id)?"#D83F69":C.muted}/><Text style={{color:C.ink,fontWeight:"800"}}>{ar?"إعجاب":"Like"}</Text></Pressable>
+        <Pressable onPress={()=>{const open=commentingViewedPost!==p.id;setCommentingViewedPost(open?p.id:null);if(open)loadViewedPostComments(p.id);}} style={{flexDirection:"row",alignItems:"center",gap:6,padding:9,backgroundColor:commentingViewedPost===p.id?"#E8F5FD":C.pale,borderRadius:10}}><MaterialCommunityIcons name="comment-outline" size={18} color={C.blue}/><Text style={{color:C.ink,fontWeight:"800"}}>{ar?"تعليق":"Comment"}</Text></Pressable>
+        <Pressable onPress={()=>shareViewedPost(p)} style={{flexDirection:"row",alignItems:"center",gap:6,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="share-variant-outline" size={18} color={C.muted}/><Text style={{color:C.ink,fontWeight:"800"}}>{ar?"مشاركة":"Share"}</Text></Pressable>
+        <Pressable onPress={()=>toggleViewedPostSave(p.id)} style={{flexDirection:"row",alignItems:"center",gap:6,padding:9,backgroundColor:viewedSavedPostIds.includes(p.id)?"#E8F5FD":C.pale,borderRadius:10}}><MaterialCommunityIcons name={viewedSavedPostIds.includes(p.id)?"bookmark":"bookmark-outline"} size={18} color={C.blue}/><Text style={{color:C.ink,fontWeight:"800"}}>{ar?"حفظ":"Save"}</Text></Pressable>
+      </View>
+      {commentingViewedPost===p.id&&<View style={{marginTop:10,gap:8}}>
+        {(viewedPostComments[p.id]||[]).map((comment:any)=><View key={comment.id} style={{padding:9,borderRadius:10,backgroundColor:C.pale}}><Text style={{fontWeight:"800",color:C.ink}}>{comment.profiles?.display_name||comment.profiles?.username|| (ar?"عضو":"Member")}</Text><Text style={s.detail}>{comment.body}</Text></View>)}
+        <View style={{flexDirection:"row",gap:7,alignItems:"center"}}><TextInput value={viewedCommentDraft} onChangeText={setViewedCommentDraft} placeholder={ar?"اكتب تعليقاً...":"Write a comment..."} placeholderTextColor={C.muted} style={[s.input,{flex:1,marginTop:0}]}/><Pressable onPress={()=>sendViewedPostComment(p.id)} style={[s.send,{marginTop:0}]}><MaterialCommunityIcons name="send" size={18} color="#FFFFFF"/></Pressable></View>
+      </View>}
+    </View>)}
       {!viewedPosts.length&&<Text style={s.empty}>{ar?"لا توجد منشورات بعد.":"No posts yet."}</Text>}
     </View>}
 
