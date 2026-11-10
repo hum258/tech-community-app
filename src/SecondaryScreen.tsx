@@ -44,7 +44,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
   const [accountMode,setAccountMode]=useState<"personal"|"business"|"company">("personal");
   const [hideFollowers,setHideFollowers]=useState(false);
   const [showPeopleList,setShowPeopleList]=useState<"followers"|"following"|null>(null);
-  const [peopleList,setPeopleList]=useState<any[]>([]);\n  const [myPosts,setMyPosts]=useState<any[]>([]);
+  const [peopleList,setPeopleList]=useState<any[]>([]);
+  const [myPosts,setMyPosts]=useState<any[]>([]);
   const [viewedProfile,setViewedProfile]=useState<any|null>(null);
   const [viewedPosts,setViewedPosts]=useState<any[]>([]);
 
