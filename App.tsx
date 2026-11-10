@@ -217,7 +217,8 @@ function CommunityApp() {
     setDraft(""); setArticleTitle(""); setPostCategory("عام"); setSelectedImage(null); setComposerOpen(false); setComposerType("post");
     const {data}=await supabase.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,hide_like_count,profiles(display_name,specialty,account_type,avatar_url,is_verified)").order("created_at",{ascending:false}).limit(50);
     if(data)setPosts(data.map((p:any)=>({id:p.id,authorId:p.author_id,hideLikeCount:!!p.hide_like_count,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],imageUrl:p.image_url,avatarUrl:p.profiles?.avatar_url,isVerified:!!p.profiles?.is_verified,accountType:p.profiles?.account_type,likes:0,comments:0,icon:"account-outline",color:"#1D9BF0"})));
-    setFeedNotice("");
+    setFeedNotice("تم النشر بنجاح.");
+    setTimeout(()=>setFeedNotice(current=>current==="تم النشر بنجاح."?"":current),1800);
   };
 
   return (
