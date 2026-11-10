@@ -44,7 +44,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
   const [accountMode,setAccountMode]=useState<"personal"|"business"|"company">("personal");
   const [hideFollowers,setHideFollowers]=useState(false);
   const [showPeopleList,setShowPeopleList]=useState<"followers"|"following"|null>(null);
-  const [peopleList,setPeopleList]=useState<any[]>([]);
+  const [peopleList,setPeopleList]=useState<any[]>([]);\n  const [myPosts,setMyPosts]=useState<any[]>([]);
   const [viewedProfile,setViewedProfile]=useState<any|null>(null);
   const [viewedPosts,setViewedPosts]=useState<any[]>([]);
 
@@ -62,6 +62,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
       supabase.from("profile_follows").select("following_id",{count:"exact",head:true}).eq("follower_id",user.id)
     ]);
     setPostCount(posts.count||0);setFollowersCount(followers.count||0);setFollowingCount(following.count||0);
+    const {data:ownPosts}=await supabase.from("posts").select("id,title,body,image_url,created_at").eq("author_id",user.id).order("created_at",{ascending:false}).limit(50);
+    setMyPosts(ownPosts||[]);
   },[]);
 
   const loadGroups=useCallback(async()=>{
@@ -307,7 +309,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
             <View style={s.cameraBadge}><MaterialCommunityIcons name="camera" size={14} color="#FFFFFF"/></View>
           </Pressable>
           <Pressable onPress={chooseAvatar}><Text style={s.changePhoto}>{ar?"تغيير الصورة الشخصية":"Change profile photo"}</Text></Pressable>
-          <View style={{flexDirection:"row",alignItems:"center",gap:6}}><Text style={s.profileName}>{profile.display_name}</Text>{profile.is_verified&&<MaterialCommunityIcons name="check-decagram" size={20} color={profile.account_type==="company"?"#89939D":C.blue}/>}</View>
+          <View style={{flexDirection:"row",alignItems:"center",gap:6}}><Text style={s.profileName}>{profile.display_name}</Text>{profile.is_verified&&<MaterialCommunityIcons name="check-decagram" size={20} color={accountMode==="company"?"#89939D":C.blue}/>}</View>
           <Text style={s.detail}>@{profile.username}</Text>
           <View style={s.statsRow}><View style={s.stat}><Text style={s.statNum}>{postCount}</Text><Text style={s.statLabel}>{ar?"المنشورات":"Posts"}</Text></View><Pressable onPress={()=>openPeopleList("followers")} style={s.stat}><Text style={s.statNum}>{followersCount}</Text><Text style={s.statLabel}>{ar?"المتابعون":"Followers"}</Text></Pressable><Pressable onPress={()=>openPeopleList("following")} style={s.stat}><Text style={s.statNum}>{followingCount}</Text><Text style={s.statLabel}>{ar?"يتابع":"Following"}</Text></Pressable></View>
           <Text style={s.detail}>{accountMode==="business"?(ar?"حساب أعمال":"Business account"):accountMode==="company"?(ar?"حساب شركة":"Company account"):(ar?"حساب شخصي":"Personal account")}</Text>
@@ -317,6 +319,13 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
         <Button label={edit?(ar?"إلغاء التعديل":"Cancel edit"):(ar?"تعديل الملف الشخصي":"Edit profile")} onPress={()=>setEdit(!edit)} disabled={busy}/>
         {edit&&<View style={s.card}><Field label={ar?"الاسم":"Display name"} value={displayName} onChange={setDisplayName}/><Field label={ar?"اسم المستخدم":"Username"} value={username} onChange={setUsername}/><Field label={ar?"نبذة":"Bio"} value={bio} onChange={setBio} multiline/><Field label={ar?"التخصص":"Specialty"} value={specialty} onChange={setSpecialty}/><Text style={s.label}>{ar?"نوع الحساب":"Account type"}</Text><View style={s.row}>{(["personal","business","company"] as const).map(v=><Pressable key={v} onPress={()=>setAccountMode(v)} style={[s.choice,accountMode===v&&s.choiceOn]}><Text style={s.choiceText}>{v==="personal"?(ar?"شخصي":"Personal"):v==="business"?(ar?"أعمال":"Business"):(ar?"شركة":"Company")}</Text></Pressable>)}</View><Text style={s.label}>{ar?"خصوصية الحساب":"Account privacy"}</Text><View style={s.row}><Pressable onPress={()=>setPrivateAccount(false)} style={[s.choice,!privateAccount&&s.choiceOn]}><Text style={s.choiceText}>{ar?"عام":"Public"}</Text></Pressable><Pressable onPress={()=>setPrivateAccount(true)} style={[s.choice,privateAccount&&s.choiceOn]}><Text style={s.choiceText}>{ar?"خاص":"Private"}</Text></Pressable></View><Pressable onPress={()=>setHideFollowers(!hideFollowers)} style={s.settingRow}><Text style={s.detail}>{ar?"إخفاء قائمة المتابعين":"Hide followers list"}</Text><Text style={s.cardTitle}>{hideFollowers?"●":"○"}</Text></Pressable><Button label={ar?"حفظ التعديلات":"Save changes"} onPress={saveProfile}/></View>}
         <View style={s.card}><View style={s.cardFoot}><Text style={s.cardTitle}>{ar?"التوثيق":"Verification"}</Text><MaterialCommunityIcons name="check-decagram" size={24} color={profile.account_type==="company"?"#89939D":C.blue}/></View><Text style={s.detail}>{ar?"فعّل الشارة الزرقاء للحساب الشخصي أو الفضية لحساب الشركة. يمكنك تشغيلها أو إيقافها مباشرة.":"Enable the blue personal or silver company badge. Toggle it whenever you like."}</Text><View style={s.verifyRow}><View style={{flexDirection:"row",alignItems:"center",gap:7}}><MaterialCommunityIcons name="check-decagram" size={22} color={profile.account_type==="company"?"#89939D":C.blue}/><Text style={s.verifyText}>{profile.account_type==="company"?(ar?"شارة شركة فضية":"Silver company badge"):(ar?"شارة شخصية زرقاء":"Blue personal badge")}</Text></View><Pressable onPress={toggleVerified} disabled={busy} style={[s.toggle,profile.is_verified&&s.toggleOn]}><View style={[s.toggleKnob,profile.is_verified&&s.toggleKnobOn]}/></Pressable></View><Text style={s.status}>{profile.is_verified?(ar?"التوثيق مفعّل":"Verification enabled"):(ar?"التوثيق متوقف":"Verification off")}</Text></View>
+        <View style={s.card}><Text style={s.cardTitle}>{ar?"الإعدادات العامة":"General settings"}</Text>
+          <Text style={s.detail}>{ar?"إصدار التطبيق: 1.0.0":"App version: 1.0.0"}</Text>
+          <Text style={s.detail}>{ar?"الخصوصية ونوع الحساب من زر تعديل الملف الشخصي.":"Privacy and account type are managed in Edit profile."}</Text>
+        </View>
+        <Text style={[s.section,ar&&s.rtl]}>{ar?"منشوراتي":"My posts"}</Text>
+        {myPosts.map(p=><View key={p.id} style={s.card}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}</View>)}
+        {!myPosts.length&&<Text style={s.empty}>{ar?"لا توجد منشورات بعد. استخدم زر + في الرئيسية للنشر.":"No posts yet. Use the + button on Home to publish."}</Text>}
         <Pressable style={s.signout} onPress={async()=>{await supabase?.auth.signOut();}}><Text style={s.signoutText}>{ar?"تسجيل الخروج":"Sign out"}</Text></Pressable>
       </>}
     </>}
