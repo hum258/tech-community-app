@@ -254,7 +254,7 @@ function CommunityApp() {
               <View style={styles.postDivider}/>
               <View style={styles.postActions}>
                 <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#657786"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{isLiked?(isArabic?"أعجبك":"Liked"):(isArabic?"إعجاب":"Like")} · {post.hideLikeCount?(isArabic?"مخفية":"Hidden"):post.likes}</Text></Pressable>
-                <Pressable style={styles.action} onPress={()=>{const opening=commentingPost!==post.id;setCommentingPost(opening?post.id:null);setCommentDraft("");if(opening&&typeof post.id==="string")loadPostComments(post.id);}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{post.comments}</Text></Pressable>
+                <Pressable style={styles.action} onPress={()=>{const opening=commentingPost!==post.id;setCommentingPost(opening?post.id:null);setCommentDraft("");if(opening&&typeof post.id==="string")loadPostComments(post.id);}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{isArabic?"تعليق":"Comment"} · {post.comments}</Text></Pressable>
                 <Pressable style={styles.action} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#657786"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
                 <Pressable style={styles.saveAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{isSaved?(isArabic?"محفوظ":"Saved"):(isArabic?"حفظ":"Save")}</Text></Pressable>
               </View>
@@ -337,11 +337,11 @@ const styles = StyleSheet.create({
   tag:{backgroundColor:"#F5F8FA",paddingHorizontal:8,paddingVertical:5,borderRadius:7},
   tagText:{color:"#6EC6EA",fontSize:10,fontWeight:"700"},
   postDivider:{height:1,backgroundColor:"#E6ECF0",marginTop:14,marginBottom:10},
-  postActions:{flexDirection:"row",alignItems:"center",gap:20},
-  action:{flexDirection:"row",alignItems:"center",gap:6},
-  actionText:{color:"#657786",fontSize:11},
+  postActions:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:5},
+  action:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:5,minHeight:40,paddingHorizontal:3},
+  actionText:{color:"#536471",fontSize:12,fontWeight:"700"},
   likedText:{color:"#F07891"},
-  saveAction:{marginLeft:"auto",padding:3},
+  saveAction:{marginLeft:0,paddingHorizontal:3,minHeight:40,flexDirection:"row",alignItems:"center",gap:5},
   commentPanel:{marginTop:12,paddingTop:10,borderTopWidth:1,borderTopColor:"#E6ECF0"},
   commentBubble:{backgroundColor:"#F5F8FA",borderRadius:10,padding:9,marginBottom:7},
   commentAuthor:{color:"#78CBEF",fontSize:10,fontWeight:"800",marginBottom:3},
