@@ -54,6 +54,7 @@ export default function FeatureHub({isArabic,userId}:Props){
   useEffect(()=>{if(active)load();},[active]);
   const filtered=useMemo(()=>rows.filter(x=>JSON.stringify(x).toLowerCase().includes(q.toLowerCase())&&(category==="الكل"||x.category===category)),[rows,q,category]);
   const add=async()=>{
+    if(["schedule","events"].includes(active||"")&&(!date.trim()||Number.isNaN(Date.parse(date)))){say(ar?"أدخل موعداً صحيحاً بصيغة التاريخ والوقت.":"Enter a valid date and time.");return;}
     if(!supabase||!userId){say(ar?"سجّل الدخول أولاً.":"Sign in first.");return;}
     setBusy(true);
     let result:any;
@@ -75,10 +76,10 @@ export default function FeatureHub({isArabic,userId}:Props){
     if(result?.error){say((ar?"لم يتم الحفظ: ":"Save failed: ")+result.error.message);return;}
     setTitle("");setBody("");setExtra("");setDate("");say(ar?"تم الحفظ بنجاح.":"Saved successfully.");await load();
   };
-  const saveLearningProgress=async(path:any)=>{
+  const saveLearningProgress=async(path:any,lesson:string)=>{
     const {data:old}=await supabase!.from("learning_path_progress").select("completed_lessons").eq("user_id",userId).eq("path_id",path.id).maybeSingle();
     const completed=Array.isArray(old?.completed_lessons)?old.completed_lessons:[];
-    const next=[...completed,"intro"];
+    const next=completed.includes(lesson)?completed.filter((x:string)=>x!==lesson):[...completed,lesson];
     const {error}=await supabase!.from("learning_path_progress").upsert({user_id:userId,path_id:path.id,completed_lessons:next,updated_at:new Date().toISOString()});
     say(error?error.message:(ar?"تم تحديث تقدمك في المسار.":"Learning progress updated."));
   };
@@ -125,7 +126,7 @@ export default function FeatureHub({isArabic,userId}:Props){
       {busy&&<Text style={s.sub}>{ar?"جارٍ التحميل...":"Loading..."}</Text>}
       {filtered.map((x:any)=><Card key={x.id||x.achievement_id}>
         {active==="badges"?<><Text style={s.itemTitle}>{x.achievements?.title||"Achievement"}</Text><Text style={s.sub}>{x.achievements?.description}</Text></>
-        :active==="learning"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.description}</Text><Button label={ar?"تسجيل التقدم":"Track progress"} onPress={()=>saveLearningProgress(x)}/></>
+        :active==="learning"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.description}</Text>{(Array.isArray(x.lessons)?x.lessons:[]).map((lesson:any,index:number)=><Button key={index} label={(ar?"إنجاز: ":"Complete: ")+(lesson.title||("Lesson "+(index+1)))} onPress={()=>saveLearningProgress(x,lesson.title||String(index))}/>)}</>
         :active==="polls"?<><Text style={s.itemTitle}>{x.question}</Text><Button label={ar?"صوّت":"Vote"} onPress={()=>vote(x)}/></>
         :active==="qa"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.body}</Text>{(x.answers||[]).map((a:any)=><View key={a.id} style={{padding:9,backgroundColor:pale,borderRadius:9,marginTop:5}}><Text style={s.sub}>{a.body}</Text>{x.author_id===userId&&<Button label={ar?"اعتماد هذه الإجابة":"Accept this answer"} onPress={()=>acceptAnswer(x,a)}/>}</View>)}<Button label={ar?"إجابة عن السؤال":"Answer question"} onPress={()=>setQuestionId(x.id)}/>{x.accepted_answer_id&&<Text style={{color:"#168A62"}}>{ar?"تم اعتماد إجابة":"Accepted answer selected"}</Text>}</>
         :active==="events"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.description} · {x.location}</Text><Button label={ar?"سجّل حضورك":"Register"} onPress={()=>joinEvent(x)}/></>
