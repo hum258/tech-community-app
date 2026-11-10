@@ -19,7 +19,10 @@
       },
       "navigationBarColor": "#FFFFFF",
       "navigationBarDividerColor": "#E6ECF0",
-      "userInterfaceStyle": "light"
+      "userInterfaceStyle": "light",
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
     },
     "assetBundlePatterns": [
       "**/*"
