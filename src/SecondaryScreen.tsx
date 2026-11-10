@@ -13,6 +13,13 @@ type Conversation = { id:string; created_at:string; peerName:string; peerUsernam
 
 const C = { blue:"#1D9BF0", ink:"#17202A", muted:"#657786", line:"#E6ECF0", pale:"#F5F8FA", white:"#FFFFFF", green:"#168A62", red:"#D9485F" };
 
+const DEMO_FOLLOWERS = [
+  ["سارة التقنية","sara.tech"],["أحمد البرمجة","ahmad.dev"],["ليان AI","layan.ai"],["عمر الشبكات","omar.net"],
+  ["نور الأمن السيبراني","noor.cyber"],["خالد المطور","khaled.code"],["ريم التقنية","reem.tech"],["يوسف الذكاء الاصطناعي","yousef.ai"],
+  ["مريم ديزاين","maryam.ui"],["زياد ويب","ziad.web"],["جود سايبر","joud.sec"],["رامي كلاود","rami.cloud"],
+  ["هبة البيانات","hiba.data"],["أنس البرمجيات","anas.software"],["تالا التقنية","tala.tech"],["مازن المطور","mazen.dev"]
+].map(([display_name, username], index) => ({ id:"demo-follower-"+index, display_name, username, is_demo:true }));
+
 export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialSettingsSection,onToggleTheme,onToggleSimpleMode,onBackHome,onOpenMessages,onOpenComposer}:Props) {
   const ar=isArabic;
   const [busy,setBusy]=useState(false);
@@ -225,6 +232,11 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
 
   const openPeopleList=async(kind:"followers"|"following")=>{
     if(!supabase||!userId)return;
+    if(kind==="followers"&&profile?.username?.toLowerCase()==="h"){
+      setPeopleList(DEMO_FOLLOWERS);
+      setShowPeopleList("followers");
+      return;
+    }
     setBusy(true);
     if(kind==="followers"&&profile?.hide_followers){setBusy(false);showNotice(ar?"قائمة المتابعين مخفية في إعداداتك.":"Your followers list is hidden in settings.");return;}
     const col=kind==="followers"?"follower_id":"following_id";
@@ -533,7 +545,8 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
     {showPeopleList&&<View style={[s.card,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}>
       <Pressable onPress={()=>setShowPeopleList(null)} style={[s.back,isDark&&{backgroundColor:"#172632"}]}><MaterialCommunityIcons name="arrow-left" size={18} color={C.blue}/><Text style={[s.backText,isDark&&{color:"#61B8F2"}]}>{ar?"رجوع للملف الشخصي":"Back to profile"}</Text></Pressable>
       <Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{showPeopleList==="followers"?(ar?"المتابعون":"Followers"):(ar?"يتابع":"Following")}</Text>
-      {peopleList.map(p=><Pressable key={p.id} onPress={()=>openProfile(p.id)} style={[s.personCard,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}><Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{p.display_name||p.username}</Text><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>@{p.username}</Text></Pressable>)}
+      {showPeopleList==="followers"&&profile?.username?.toLowerCase()==="h"&&<Text style={[s.detail,{marginBottom:10,color:C.blue}]}>{ar?"قائمة تجريبية دائمة — المعروض عينات من الحسابات، والعدد 100 ألف رقم تجريبي.":"Permanent demo list — sample accounts are shown; 100K is a demo display count."}</Text>}
+      {peopleList.map(p=><Pressable key={p.id} onPress={()=>p.is_demo?showNotice(ar?"هذا حساب تجريبي للعرض فقط.":"This is a demo-only account."):openProfile(p.id)} style={[s.personCard,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}><Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{p.display_name||p.username}</Text><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>@{p.username}{p.is_demo?(ar?" · حساب تجريبي":" · Demo account"):""}</Text></Pressable>)}
       {!peopleList.length&&<Text style={[s.empty,isDark&&{color:"#C4D0DA"}]}>{ar?"لا توجد حسابات لعرضها.":"No accounts to show."}</Text>}
     </View>}
 
@@ -617,7 +630,7 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
           <Pressable onPress={chooseAvatar}><Text style={s.changePhoto}>{ar?"تغيير الصورة الشخصية":"Change profile photo"}</Text></Pressable>
           <View style={{flexDirection:"row",alignItems:"center",gap:6}}><Text style={[s.profileName,isDark&&{color:"#F2F6FA"}]}>{profile.display_name}</Text>{profile.is_verified&&<Pressable onPress={()=>showVerificationInfo(profile.company_name)}><MaterialCommunityIcons name="check-decagram" size={20} color={accountMode==="company"?"#89939D":C.blue}/></Pressable>}</View>
           <Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>@{profile.username}</Text>
-          <View style={s.statsRow}><View style={s.stat}><Text style={[s.statNum,isDark&&{color:"#F2F6FA"}]}>{postCount}</Text><Text style={s.statLabel}>{ar?"المنشورات":"Posts"}</Text></View><Pressable onPress={()=>openPeopleList("followers")} style={s.stat}><Text style={[s.statNum,isDark&&{color:"#F2F6FA"}]}>{followersCount}</Text><Text style={s.statLabel}>{ar?"المتابعون":"Followers"}</Text></Pressable><Pressable onPress={()=>openPeopleList("following")} style={s.stat}><Text style={[s.statNum,isDark&&{color:"#F2F6FA"}]}>{followingCount}</Text><Text style={s.statLabel}>{ar?"يتابع":"Following"}</Text></Pressable></View>
+          <View style={s.statsRow}><View style={s.stat}><Text style={[s.statNum,isDark&&{color:"#F2F6FA"}]}>{postCount}</Text><Text style={s.statLabel}>{ar?"المنشورات":"Posts"}</Text></View><Pressable onPress={()=>openPeopleList("followers")} style={s.stat}><Text style={[s.statNum,isDark&&{color:"#F2F6FA"}]}>{profile.username?.toLowerCase()==="h"?"100,000":followersCount}</Text><Text style={s.statLabel}>{ar?"المتابعون":"Followers"}</Text></Pressable><Pressable onPress={()=>openPeopleList("following")} style={s.stat}><Text style={[s.statNum,isDark&&{color:"#F2F6FA"}]}>{followingCount}</Text><Text style={s.statLabel}>{ar?"يتابع":"Following"}</Text></Pressable></View>
           <Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{accountMode==="business"?(ar?"حساب أعمال":"Business account"):accountMode==="company"?(ar?"حساب شركة":"Company account"):(ar?"حساب شخصي":"Personal account")}</Text><View style={{marginTop:10,padding:12,borderRadius:12,backgroundColor:"#FFF7E6",flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><View style={{flexDirection:"row",alignItems:"center",gap:7}}><MaterialCommunityIcons name="trophy-outline" size={20} color="#C28A24"/><Text style={{color:"#8C641A",fontWeight:"800"}}>{ar?"نقاط المساهمات":"Contribution points"}</Text></View><Text style={{color:"#8C641A",fontSize:17,fontWeight:"900"}}>{profile.points||0}</Text></View>
           <Text style={[s.bio,isDark&&{color:"#C4D0DA"}]}>{profile.bio||""}</Text>
           <View style={s.tags}>{(profile.interests||[]).map(x=><Text key={x} style={s.tag}>{x}</Text>)}</View>
@@ -658,9 +671,9 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
           {p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}
           <Pressable onPress={()=>showMyPostAnalytics(p)} style={{marginTop:10,minHeight:42,borderRadius:11,borderWidth:1,borderColor:C.blue,backgroundColor:isDark?"#122B3B":"#EAF6FE",flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8}}><MaterialCommunityIcons name="chart-box-outline" size={19} color={C.blue}/><Text style={{fontWeight:"900",color:C.blue}}>{ar?"تحليل المنشور":"Post analytics"}</Text></Pressable>
           <View style={{flexDirection:"row",flexWrap:"wrap",justifyContent:"space-between",gap:7,marginTop:12,borderTopWidth:1,borderTopColor:C.line,paddingTop:10}}>
-            <Pressable onPress={()=>toggleMyPostLike(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:likedMyPosts.includes(p.id)?"#FCE8EE":C.pale,borderRadius:10}}><MaterialCommunityIcons name={likedMyPosts.includes(p.id)?"heart":"heart-outline"} size={19} color={likedMyPosts.includes(p.id)?"#D83F69":C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"إعجاب":"Like"}</Text></Pressable>
-            <Pressable onPress={()=>setCommentingMyPost(commentingMyPost===p.id?null:p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="comment-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"تعليق":"Comment"}</Text></Pressable>
-            <Pressable onPress={()=>toggleMyPostRepost(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:repostedMyPosts.includes(p.id)?"#E4F5EE":C.pale,borderRadius:10}}><MaterialCommunityIcons name="repeat" size={19} color={repostedMyPosts.includes(p.id)?C.green:C.muted}/><Text style={{color:repostedMyPosts.includes(p.id)?C.green:C.ink,fontWeight:"700",fontSize:12}}>{ar?"إعادة نشر":"Repost"} {myPostMetrics[p.id]?.reposts||0}</Text></Pressable>
+            <Pressable onPress={()=>toggleMyPostLike(p.id)} style={{flex:1,minWidth:68,minHeight:48,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:5,paddingHorizontal:5,backgroundColor:likedMyPosts.includes(p.id)?"#FCE8EE":C.pale,borderRadius:10}}><MaterialCommunityIcons name={likedMyPosts.includes(p.id)?"heart":"heart-outline"} size={19} color={likedMyPosts.includes(p.id)?"#D83F69":C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:11}}>{ar?"إعجاب":"Like"} {myPostMetrics[p.id]?.likes||0}</Text></Pressable>
+            <Pressable onPress={()=>setCommentingMyPost(commentingMyPost===p.id?null:p.id)} style={{flex:1,minWidth:68,minHeight:48,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:5,paddingHorizontal:5,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="comment-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:11}}>{ar?"تعليق":"Reply"} {myPostMetrics[p.id]?.comments||0}</Text></Pressable>
+            <Pressable onPress={()=>toggleMyPostRepost(p.id)} style={{flex:1,minWidth:88,minHeight:48,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:5,paddingHorizontal:5,backgroundColor:repostedMyPosts.includes(p.id)?"#E4F5EE":C.pale,borderRadius:10}}><MaterialCommunityIcons name="repeat" size={19} color={repostedMyPosts.includes(p.id)?C.green:C.muted}/><Text style={{color:repostedMyPosts.includes(p.id)?C.green:C.ink,fontWeight:"700",fontSize:11}}>{ar?"إعادة نشر":"Repost"} {myPostMetrics[p.id]?.reposts||0}</Text></Pressable>
             <Pressable onPress={()=>Share.share({message:(p.title||"")+"\n\n"+(p.body||"")})} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="share-variant-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"مشاركة":"Share"}</Text></Pressable>
             <Pressable onPress={()=>toggleMyPostSave(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:savedMyPosts.includes(p.id)?"#E8F5FD":C.pale,borderRadius:10}}><MaterialCommunityIcons name={savedMyPosts.includes(p.id)?"bookmark":"bookmark-outline"} size={19} color={C.blue}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"حفظ":"Save"}</Text></Pressable>
           </View>
