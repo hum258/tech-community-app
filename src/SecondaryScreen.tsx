@@ -147,7 +147,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
 
   useEffect(()=>{if(tab==="profile"||tab==="settings"||tab==="features")loadProfile();if(tab==="explore"){loadTopics();loadTrending();}if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
 
-  const showNotice=(v:string)=>setNotice(v);\n  const showVerificationInfo=(companyName?:string|null)=>Alert.alert(ar?"شارة التوثيق":"Verification badge",ar?`تم التوثيق من شركة المجتمع التقني.\\nاسم التطبيق: المجتمع التقني – Tech Community${companyName?"\\nالجهة: "+companyName:""}`:`Verified by Tech Community.\\nApp: Tech Community${companyName?"\\nOrganization: "+companyName:""}`);
+  const showNotice=(v:string)=>setNotice(v);
+  const showVerificationInfo=(companyName?:string|null)=>Alert.alert(ar?"شارة التوثيق":"Verification badge",ar?`تم التوثيق من شركة المجتمع التقني.\\nاسم التطبيق: المجتمع التقني – Tech Community${companyName?"\\nالجهة: "+companyName:""}`:`Verified by Tech Community.\\nApp: Tech Community${companyName?"\\nOrganization: "+companyName:""}`);
   const saveProfile=async()=>{
     if(!supabase||!userId||!displayName.trim()||!username.trim()){showNotice(ar?"الاسم واسم المستخدم مطلوبان.":"Name and username are required.");return;}
     if(!/^[a-zA-Z0-9_]{1,20}$/.test(username.trim())){showNotice(ar?"اسم المستخدم يجب أن يكون من 1 إلى 20 حرفاً أو رقماً أو _.":"Username must be 3–20 letters, numbers or underscores.");return;}
@@ -524,7 +525,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
           <Text style={s.detail}>{ar?"إصدار التطبيق: 1.0.0":"App version: 1.0.0"}</Text>
           <Text style={s.detail}>{ar?"الخصوصية ونوع الحساب من زر تعديل الملف الشخصي.":"Privacy and account type are managed in Edit profile."}</Text>
         </View>
-        <Button label={ar?"نشر منشور من حسابي":"Publish from profile"} onPress={onOpenComposer}/>\n        <Text style={[s.section,ar&&s.rtl]}>{ar?"منشوراتي":"My posts"}</Text>
+        <Button label={ar?"نشر منشور من حسابي":"Publish from profile"} onPress={onOpenComposer}/>
+        <Text style={[s.section,ar&&s.rtl]}>{ar?"منشوراتي":"My posts"}</Text>
         {myPosts.map(p=><View key={p.id} style={s.card}>
           <Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}
           <View style={{flexDirection:"row",flexWrap:"nowrap",justifyContent:"space-between",gap:2,marginTop:12,borderTopWidth:1,borderTopColor:C.line,paddingTop:8}}>
