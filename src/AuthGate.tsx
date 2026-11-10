@@ -203,7 +203,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           <Pressable style={a.dateChoice} onPress={() => setDatePickerPart("year")}><Text style={a.dateChoiceText}>{birthYear || "السنة"}</Text><MaterialCommunityIcons name="chevron-down" size={18} color="#657786"/></Pressable>
         </View>
         {!!birthDate && <Pressable onPress={() => updateBirthDate("","","")}><Text style={a.clearDate}>مسح تاريخ الميلاد</Text></Pressable>}
-        <Field label="البريد الإلكتروني" value={email} change={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email"/>
+        <Field label="البريد الإلكتروني" value={email} change={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="username"/>
         <Text style={a.label}>خصوصية الحساب</Text>
         <View style={a.privacyRow}>
           <Pressable style={[a.privacy, !isPrivate && a.privacyOn]} onPress={() => setIsPrivate(false)}><Text style={[a.privacyText, !isPrivate && a.privacyTextOn]}>عام</Text></Pressable>
