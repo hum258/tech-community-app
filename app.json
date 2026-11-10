@@ -23,6 +23,9 @@
     },
     "assetBundlePatterns": [
       "**/*"
+    ],
+    "plugins": [
+      "./plugins/withTechCommunitySplash"
     ]
   }
 }
