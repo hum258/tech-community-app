@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "./lib/supabase";
 import { requestAuthMode } from "./AuthGate";
+import FeatureHub from "./FeatureHub";
 
 type Props = { tab: string; isArabic: boolean; onBackHome: () => void; onOpenMessages: () => void };
 type Profile = { id:string; account_type:"personal"|"company"; account_mode:"personal"|"business"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; hide_followers:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null; avatar_url:string|null; cover_url:string|null; is_verified:boolean };
@@ -125,7 +126,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     setConversations(mapped);
   },[]);
 
-  useEffect(()=>{if(tab==="profile"||tab==="settings")loadProfile();if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
+  useEffect(()=>{if(tab==="profile"||tab==="settings"||tab==="features")loadProfile();if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
 
   const showNotice=(v:string)=>setNotice(v);
   const saveProfile=async()=>{
@@ -289,7 +290,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     finally{setBusy(false);}
   };
 
-  const title=tab==="settings"?(ar?"الإعدادات والخصوصية":"Settings and privacy"):tab==="explore"?(ar?"استكشف المجتمع":"Explore"):tab==="groups"?(ar?"المجتمعات التقنية":"Communities"):tab==="messages"?(ar?"الرسائل":"Messages"):(ar?"ملفي الشخصي":"My profile");
+  const title=tab==="features"?(ar?"الأدوات والميزات":"Features and tools"):tab==="settings"?(ar?"الإعدادات والخصوصية":"Settings and privacy"):tab==="explore"?(ar?"استكشف المجتمع":"Explore"):tab==="groups"?(ar?"المجتمعات التقنية":"Communities"):tab==="messages"?(ar?"الرسائل":"Messages"):(ar?"ملفي الشخصي":"My profile");
   const Field=({label,value,onChange,placeholder,multiline=false}:any)=><View style={{marginTop:12}}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor="#9AA8B2" multiline={multiline} style={[s.input,multiline&&{height:90,textAlignVertical:"top",paddingTop:12},ar&&s.rtl]}/></View>;
   const Button=({label,onPress,disabled=false}:any)=><Pressable disabled={disabled||busy} onPress={onPress} style={[s.button,(disabled||busy)&&{opacity:.55}]}><Text style={s.buttonText}>{busy? (ar?"جارٍ التنفيذ...":"Please wait..."):label}</Text></Pressable>;
 
@@ -297,6 +298,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     <Text style={s.eyebrow}>{ar?"مساحتك التقنية":"YOUR TECH SPACE"}</Text>
     <Text style={[s.title,ar&&s.rtl]}>{title}</Text>
     {!!notice&&<View style={s.notice}><Text style={[s.noticeText,ar&&s.rtl]}>{notice}</Text><Pressable onPress={()=>setNotice("")}><MaterialCommunityIcons name="close" size={17} color={C.muted}/></Pressable></View>}
+
+    {tab==="features"&&<FeatureHub isArabic={ar} userId={userId}/>}
 
     {tab==="settings"&&<>
       {!settingsSection?<>
