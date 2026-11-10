@@ -270,7 +270,7 @@ function CommunityApp() {
             <MaterialCommunityIcons name="tune-variant" size={19} color="#7F9AB6" />
           </View>
 
-          {!!feedNotice && <Text style={{color:"#F4B860",fontSize:11,marginTop:10}}>{feedNotice}</Text>}
+          {!!feedNotice && <View style={{marginTop:10,paddingVertical:10,paddingHorizontal:12,borderRadius:10,backgroundColor:feedNotice==="تم النشر بنجاح."?"#E8F7EF":"#FFF4E5",borderWidth:1,borderColor:feedNotice==="تم النشر بنجاح."?"#B7E4C7":"#F1D6A8",flexDirection:"row",alignItems:"center",gap:8}}><MaterialCommunityIcons name={feedNotice==="تم النشر بنجاح."?"check-circle":"information-outline"} size={18} color={feedNotice==="تم النشر بنجاح."?"#168A62":"#A66A00"}/><Text style={{color:feedNotice==="تم النشر بنجاح."?"#176B45":"#805400",fontSize:12,fontWeight:"800",flex:1}}>{feedNotice}</Text></View>}
           <View style={styles.sectionHeading}>
             <View><Text style={[styles.sectionTitle, isArabic && styles.rtl]}>{labels.feed}</Text></View>
             <Pressable style={styles.writeButton} onPress={()=>setShowComposerChoices(v=>!v)}>
@@ -331,7 +331,7 @@ function CommunityApp() {
                   <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text>{post.isVerified&&<Pressable onPress={()=>Alert.alert("توثيق الحساب","تم التوثيق من شركة المجتمع التقني.\\nالمؤسسة: المجتمع التقني – Tech Community.")}><MaterialCommunityIcons name="check-decagram" size={15} color={post.accountType==="company"?"#89939D":"#1D9BF0"}/></Pressable>}</View>
                   <Text style={styles.authorRole}>{post.role} · {post.time}</Text>
                 </View>
-                <Pressable style={styles.moreButton} onPress={()=>openPostMenu(post)}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#657786"/></Pressable>
+                <Pressable hitSlop={12} style={[styles.moreButton,{padding:7,borderRadius:10,backgroundColor:"#F5F8FA"}]} onPress={()=>openPostMenu(post)}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#657786"/></Pressable>
               </View>
               <View style={styles.postCategory}><Text style={styles.categoryText}>{post.category}</Text></View>
               <Text style={[styles.postTitle, isArabic && styles.rtl]}>{post.title}</Text>
