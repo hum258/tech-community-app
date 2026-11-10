@@ -17,6 +17,28 @@ module.exports = function withTechCommunitySplash(config) {
     const res = path.join(config.modRequest.platformProjectRoot, "app", "src", "main", "res", "drawable");
     fs.mkdirSync(res, { recursive: true });
     fs.writeFileSync(path.join(res, "tech_community_splash.xml"), vector);
+    const iconVector = `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M42,29 L19,54 L42,79 L49,72 L32,54 L49,36 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M66,29 L89,54 L66,79 L59,72 L76,54 L59,36 Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M60,22 L48,86 L57,86 L69,22 Z"/>
+</vector>`;
+    fs.writeFileSync(path.join(res, "tech_community_icon.xml"), iconVector);
+    const mipmap = path.join(config.modRequest.platformProjectRoot, "app", "src", "main", "res", "mipmap-anydpi-v26");
+    fs.mkdirSync(mipmap, { recursive: true });
+    const adaptive = `<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/tech_community_icon_background"/>
+    <foreground android:drawable="@drawable/tech_community_icon"/>
+</adaptive-icon>`;
+    fs.writeFileSync(path.join(mipmap, "ic_launcher.xml"), adaptive);
+    fs.writeFileSync(path.join(mipmap, "ic_launcher_round.xml"), adaptive);
+    const values = path.join(config.modRequest.platformProjectRoot, "app", "src", "main", "res", "values");
+    fs.mkdirSync(values, { recursive: true });
+    const colorsPath = path.join(values, "tech_community_icon_colors.xml");
+    fs.writeFileSync(colorsPath, `<?xml version="1.0" encoding="utf-8"?>\n<resources><color name="tech_community_icon_background">#1D9BF0</color></resources>`);
     return config;
   }]);
   config = withAndroidStyles(config, (config) => {
