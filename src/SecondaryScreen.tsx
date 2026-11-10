@@ -59,6 +59,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
   const [settingsEmail,setSettingsEmail]=useState("");
   const [settingsPrivate,setSettingsPrivate]=useState(false);
   const [settingsHideFollowers,setSettingsHideFollowers]=useState(false);
+  const [notificationRows,setNotificationRows]=useState<any[]>([]);
+  const [darkDisplay,setDarkDisplay]=useState(false);
 
 
   const loadProfile=useCallback(async()=>{
@@ -268,6 +270,29 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     ]);
   };
 
+  const loadNotifications=async()=>{
+    if(!supabase||!userId)return;
+    const {data,error}=await supabase.from("notifications").select("id,kind,body,is_read,created_at,profiles:actor_id(display_name,username)").eq("recipient_id",userId).order("created_at",{ascending:false}).limit(50);
+    if(error){showNotice(error.message);return;}setNotificationRows(data||[]);
+  };
+  const markNotificationRead=async(id:string)=>{
+    const {error}=await supabase!.from("notifications").update({is_read:true}).eq("id",id).eq("recipient_id",userId);
+    if(!error)setNotificationRows(old=>old.map(n=>n.id===id?{...n,is_read:true}:n));
+  };
+  const blockViewedProfile=async()=>{
+    if(!supabase||!viewedProfile||!userId)return;
+    const {error}=await supabase.from("user_blocks").insert({blocker_id:userId,blocked_id:viewedProfile.id});
+    if(error){showNotice(error.message);return;}
+    setViewedProfile(null);showNotice(ar?"تم حظر الحساب.":"Account blocked.");
+  };
+  const reportViewedProfile=()=>{
+    if(!viewedProfile||!userId)return;
+    Alert.alert(ar?"الإبلاغ عن الحساب":"Report account",ar?"اختر سبب الإبلاغ":"Choose a reason",[
+      ...[ar?"محتوى مزعج":"Spam",ar?"انتحال شخصية":"Impersonation",ar?"إساءة أو مضايقة":"Abuse or harassment"].map(reason=>({text:reason,onPress:async()=>{const {error}=await supabase!.from("content_reports").insert({reporter_id:userId,reported_user_id:viewedProfile.id,reason});showNotice(error?error.message:(ar?"تم إرسال البلاغ للمراجعة.":"Report submitted for review."));}})),
+      {text:ar?"إلغاء":"Cancel",style:"cancel"}
+    ]);
+  };
+
   const startConversationWith=async(person:any)=>{
     if(!supabase||!person?.id||!userId)return;
     if(person.id===userId){showNotice(ar?"لا يمكنك مراسلة نفسك.":"You cannot message yourself.");return;}
@@ -340,7 +365,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
         </View>
         <View style={s.card}><Text style={s.cardTitle}>{ar?"الخصوصية والأمان":"Privacy and safety"}</Text>
           <Pressable style={s.settingRow} onPress={()=>setSettingsSection("privacy")}><Text style={s.detail}>{ar?"خصوصية الحساب والمتابعون":"Account privacy and followers"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
-          <Pressable style={s.settingRow} onPress={()=>setSettingsSection("notifications")}><Text style={s.detail}>{ar?"الإشعارات":"Notifications"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
+          <Pressable style={s.settingRow} onPress={()=>{setSettingsSection("notifications");loadNotifications();}}><Text style={s.detail}>{ar?"الإشعارات":"Notifications"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
           <Pressable style={s.settingRow} onPress={()=>setSettingsSection("display")}><Text style={s.detail}>{ar?"إمكانية الوصول والعرض واللغات":"Accessibility, display and languages"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
           <Pressable style={s.settingRow} onPress={()=>setSettingsSection("personalization")}><Text style={s.detail}>{ar?"الخصوصية والتخصيص":"Privacy and personalization"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
         </View>
@@ -354,7 +379,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
         {settingsSection==="account"&&<><Text style={s.detail}>{ar?"البريد الإلكتروني":"Email"}: {settingsEmail}</Text><Text style={s.detail}>{ar?"اسم المستخدم":"Username"}: @{profile?.username||""}</Text></>}
         {settingsSection==="security"&&<><Text style={s.detail}>{ar?"أرسل رابطاً آمناً إلى بريدك لتغيير كلمة المرور.":"Send a secure password-reset link to your email."}</Text><Button label={ar?"إرسال رابط تغيير كلمة المرور":"Send password reset link"} onPress={async()=>{if(!supabase||!settingsEmail){showNotice(ar?"تعذر تحديد البريد الإلكتروني.":"Email unavailable.");return;}setBusy(true);const {error}=await supabase.auth.resetPasswordForEmail(settingsEmail,{redirectTo:"techcommunity://reset-password"});setBusy(false);showNotice(error?(ar?"تعذر إرسال الرابط: ":"Could not send link: ")+error.message:(ar?"إذا كان البريد مسجلاً فسيصلك رابط الاستعادة.":"If registered, a reset link will arrive by email."));}}/></>}
         {settingsSection==="privacy"&&<><Pressable style={s.settingRow} onPress={async()=>{const next=!settingsPrivate;setSettingsPrivate(next);const {error}=await supabase!.from("profiles").update({is_private:next}).eq("id",userId);if(error){setSettingsPrivate(!next);showNotice(error.message);}else{setPrivateAccount(next);showNotice(ar?"تم تحديث خصوصية الحساب.":"Privacy updated.");}}}><Text style={s.detail}>{ar?"الحساب الخاص":"Private account"}</Text><SettingSwitch value={settingsPrivate}/></Pressable><Pressable style={s.settingRow} onPress={async()=>{const next=!settingsHideFollowers;setSettingsHideFollowers(next);const {error}=await supabase!.from("profiles").update({hide_followers:next}).eq("id",userId);if(error){setSettingsHideFollowers(!next);showNotice(error.message);}else{setHideFollowers(next);showNotice(ar?"تم تحديث إعداد المتابعين.":"Followers setting updated.");}}}><Text style={s.detail}>{ar?"إخفاء قائمة المتابعين":"Hide followers list"}</Text><SettingSwitch value={settingsHideFollowers}/></Pressable></>}
-        {settingsSection==="notifications"&&<Text style={s.detail}>{ar?"إعدادات الإشعارات الفعلية تحتاج ربط خدمة إشعارات للجهاز. لن نعرض مفاتيح شكلية قبل ربطها.":"Device notifications need a push-notification service. No nonfunctional switches are shown."}</Text>}
+        {settingsSection==="notifications"&&<>{notificationRows.map(n=><Pressable key={n.id} onPress={()=>markNotificationRead(n.id)} style={[s.card,{backgroundColor:n.is_read?C.white:"#EAF5FC"}]}><Text style={s.detail}>{n.body}</Text><Text style={s.status}>{new Date(n.created_at).toLocaleString(ar?"ar":"en")}</Text></Pressable>)}{!notificationRows.length&&<Text style={s.detail}>{ar?"لا توجد إشعارات بعد. ستظهر هنا تفاعلات الإعجاب والتعليق والمتابعة.":"No notifications yet. Likes, comments and follows will appear here."}</Text>}</>}
         {settingsSection==="display"&&<Text style={s.detail}>{ar?"يمكنك تغيير اللغة من زر اللغة أعلى التطبيق.":"Change the language using the language control in the app header."}</Text>}
         {settingsSection==="personalization"&&<Text style={s.detail}>{ar?"خيارات التخصيص المتقدمة ستظهر بعد ربط مصادر البيانات اللازمة.":"Advanced personalization options will appear once their data sources are connected."}</Text>}
       </View>}
@@ -384,7 +409,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
       </View>
       <View style={s.row}>
         <Pressable onPress={()=>toggleFollow(viewedProfile.id)} style={[s.button,{flex:1},followingIds.includes(viewedProfile.id)&&s.secondaryButton]}><Text style={[s.buttonText,followingIds.includes(viewedProfile.id)&&s.secondaryButtonText]}>{followingIds.includes(viewedProfile.id)?(ar?"إلغاء المتابعة":"Unfollow"):(ar?"متابعة":"Follow")}</Text></Pressable>
-        <Pressable onPress={()=>startConversationWith(viewedProfile)} style={[s.button,{flex:1,backgroundColor:C.ink}]}><Text style={s.buttonText}>{ar?"مراسلة":"Message"}</Text></Pressable>
+        <View style={{flexDirection:"row",gap:8,marginTop:12}}><Pressable onPress={reportViewedProfile} style={{padding:10,backgroundColor:"#FFF4E5",borderRadius:10}}><Text style={{color:"#A66A00",fontWeight:"700"}}>{ar?"إبلاغ":"Report"}</Text></Pressable><Pressable onPress={blockViewedProfile} style={{padding:10,backgroundColor:"#FCEBED",borderRadius:10}}><Text style={{color:C.red,fontWeight:"700"}}>{ar?"حظر الحساب":"Block account"}</Text></Pressable></View>
+  <Pressable onPress={()=>startConversationWith(viewedProfile)} style={[s.button,{flex:1,backgroundColor:C.ink}]}><Text style={s.buttonText}>{ar?"مراسلة":"Message"}</Text></Pressable>
       </View>
       {viewedProfile.is_private&&<Text style={s.detail}>{ar?"هذا الحساب خاص.":"This account is private."}</Text>}
       {viewedPosts.map(p=><View key={p.id} style={s.card}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}</View>)}
