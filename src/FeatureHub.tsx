@@ -15,6 +15,12 @@ const modules=[
   ["learning","مسارات التعلم","Learning paths","school-outline"],
   ["qa","الأسئلة والأجوبة","Q&A","frequently-asked-questions"],
   ["portfolio","ملفي الاحترافي","Professional profile","briefcase-outline"],
+  ["endorsements","تأييد المهارات","Skill endorsements","thumb-up-outline"],
+  ["directory","دليل الخبراء","Expert directory","account-search-outline"],
+  ["opportunities","فرص التدريب والعمل","Training & work opportunities","briefcase-search-outline"],
+  ["collaborations","التعاون على المشاريع","Project collaboration","account-group-outline"],
+  ["mentorship","الإرشاد المهني","Mentorship requests","school-outline"],
+  ["reviews","مراجعة المشاريع","Project reviews","star-check-outline"],
   ["events","الفعاليات والورش","Events & workshops","calendar-star"],
   ["audio","المساحات الصوتية","Audio rooms","headphones"]
 ] as const;
@@ -40,10 +46,11 @@ export default function FeatureHub({isArabic,userId}:Props){
   const load=async()=>{
     if(!supabase||!active)return;
     setBusy(true);
-    const table=active==="lists"?"follow_lists":active==="polls"?"polls":active==="drafts"?"post_drafts":active==="schedule"?"scheduled_posts":active==="badges"?"user_achievements":active==="learning"?"learning_paths":active==="qa"?"questions":active==="portfolio"?"profile_portfolio_items":active==="events"?"events":"audio_rooms";
+    const table=active==="lists"?"follow_lists":active==="polls"?"polls":active==="drafts"?"post_drafts":active==="schedule"?"scheduled_posts":active==="badges"?"user_achievements":active==="learning"?"learning_paths":active==="qa"?"questions":active==="portfolio"?"profile_portfolio_items":active==="endorsements"?"profile_skill_endorsements":active==="opportunities"?"tech_opportunities":active==="collaborations"?"project_collaborations":active==="mentorship"?"mentorship_requests":active==="reviews"?"project_reviews":active==="events"?"events":"audio_rooms";
     let req:any=supabase.from(table).select("*").order("created_at",{ascending:false}).limit(50);
     if(["lists","drafts","schedule","portfolio"].includes(active))req=req.eq(active==="lists"?"owner_id":"user_id",userId);
-    if(active==="polls"||active==="qa"){}
+    if(active==="mentorship")req=req.or("mentor_id.eq."+userId+",requester_id.eq."+userId);
+    if(active==="directory")req=supabase.from("profiles").select("id,display_name,username,specialty,location,skills,github_url,website_url,is_verified").order("display_name").limit(100);
     if(active==="search")req=supabase.from("posts").select("id,title,body,category,created_at").order("created_at",{ascending:false}).limit(100);
     if(active==="learning")req=supabase.from("learning_paths").select("*").eq("is_published",true).order("created_at",{ascending:false});
     if(active==="badges")req=supabase.from("user_achievements").select("awarded_at,achievements(title,description,icon)").eq("user_id",userId);
@@ -65,6 +72,11 @@ export default function FeatureHub({isArabic,userId}:Props){
     else if(active==="schedule")result=await supabase.from("scheduled_posts").insert({user_id:userId,title:title.trim(),body,category:category==="الكل"?"عام":category,scheduled_at:new Date(date).toISOString()});
     else if(active==="qa")result=await supabase.from("questions").insert({author_id:userId,title:title.trim(),body,category:category==="الكل"?"عام":category});
     else if(active==="portfolio")result=await supabase.from("profile_portfolio_items").insert({user_id:userId,title:title.trim(),description:body,item_type:category==="الكل"?"project":category,url:extra.trim()||null});
+    else if(active==="opportunities")result=await supabase.from("tech_opportunities").insert({owner_id:userId,title:title.trim(),description:body,opportunity_type:category==="الكل"?"training":category,location:extra.trim()||null});
+    else if(active==="collaborations")result=await supabase.from("project_collaborations").insert({owner_id:userId,title:title.trim(),description:body,skills_needed:extra.split(",").map(x=>x.trim()).filter(Boolean)});
+    else if(active==="mentorship"){const {data:mentor,error:lookupError}=await supabase.from("profiles").select("id").eq("username",extra.trim().replace(/^@/,"").toLowerCase()).maybeSingle();if(lookupError||!mentor){setBusy(false);say(ar?"لم نعثر على اسم المرشد.":"Mentor username not found.");return;}result=await supabase.from("mentorship_requests").insert({mentor_id:mentor.id,requester_id:userId,topic:title.trim(),message:body});}
+    else if(active==="reviews"){const {data:owner,error:lookupError}=await supabase.from("profiles").select("id").eq("username",extra.trim().replace(/^@/,"").toLowerCase()).maybeSingle();if(lookupError||!owner){setBusy(false);say(ar?"لم نعثر على صاحب المشروع.":"Project owner username not found.");return;}result=await supabase.from("project_reviews").insert({project_owner_id:owner.id,reviewer_id:userId,project_title:title.trim(),feedback:body,rating:Math.max(1,Math.min(5,Number(category)||5))});}
+    else if(active==="endorsements"){const {data:target,error:lookupError}=await supabase.from("profiles").select("id").eq("username",extra.trim().replace(/^@/,"").toLowerCase()).maybeSingle();if(lookupError||!target){setBusy(false);say(ar?"لم نعثر على الحساب.":"Profile username not found.");return;}result=await supabase.from("profile_skill_endorsements").insert({profile_id:target.id,endorser_id:userId,skill_name:title.trim()});}
     else if(active==="events")result=await supabase.from("events").insert({creator_id:userId,title:title.trim(),description:body,starts_at:new Date(date).toISOString(),location:extra.trim()||"عن بُعد"});
     else if(active==="audio")result=await supabase.from("audio_rooms").insert({host_id:userId,title:title.trim(),starts_at:date?new Date(date).toISOString():new Date().toISOString(),status:"scheduled"});
     else if(active==="polls"){
@@ -133,9 +145,13 @@ export default function FeatureHub({isArabic,userId}:Props){
     </>:<>
       <Pressable onPress={()=>setActive(null)} style={s.back}><MaterialCommunityIcons name="arrow-left" size={19} color={blue}/><Text style={{color:blue,fontWeight:"800"}}>{ar?"كل الأدوات":"All tools"}</Text></Pressable>
       <Text style={s.heading}>{(modules.find(x=>x[0]===active)?.[ar?1:2])}</Text>
-      {["lists","drafts","schedule","qa","portfolio","events","audio","polls"].includes(active)&&<Card>
+      {["lists","drafts","schedule","qa","portfolio","events","audio","polls","endorsements","opportunities","collaborations","mentorship","reviews"].includes(active)&&<Card>
         <Field label={active==="polls"?(ar?"السؤال":"Question"):(ar?"العنوان":"Title")} value={title} onChange={setTitle}/>
-        {active!=="lists"&&<Field label={active==="polls"?(ar?"الخيارات، كل خيار بسطر":"Options, one per line"):(ar?"التفاصيل":"Details")} value={body} onChange={setBody} multiline/>}
+        {active!=="lists"&&active!=="endorsements"&&<Field label={active==="polls"?(ar?"الخيارات، كل خيار بسطر":"Options, one per line"):(ar?"التفاصيل":"Details")} value={body} onChange={setBody} multiline/>}
+        {["endorsements","mentorship","reviews"].includes(active)&&<Field label={active==="endorsements"?(ar?"اسم المستخدم للحساب":"Profile username"):(active==="mentorship"?(ar?"اسم المستخدم للمرشد":"Mentor username"):(ar?"اسم مستخدم صاحب المشروع":"Project owner username"))} value={extra} onChange={setExtra} placeholder="@username"/>}
+        {active==="opportunities"&&<><Field label={ar?"نوع الفرصة":"Opportunity type"} value={category} onChange={setCategory} placeholder="training / internship / job / volunteer"/><Field label={ar?"الموقع":"Location"} value={extra} onChange={setExtra}/></>}
+        {active==="collaborations"&&<Field label={ar?"المهارات المطلوبة (افصل بفواصل)":"Skills needed (comma-separated)"} value={extra} onChange={setExtra}/ >}
+        {active==="reviews"&&<Field label={ar?"التقييم من 1 إلى 5":"Rating from 1 to 5"} value={category} onChange={setCategory}/ >}
         {["schedule","events","audio"].includes(active)&&<Field label={ar?"الموعد (مثال 2026-12-20T18:00)":"Date/time (e.g. 2026-12-20T18:00)"} value={date} onChange={setDate}/>}
         {["portfolio","events"].includes(active)&&<Field label={active==="events"?(ar?"المكان أو رابط الاجتماع":"Location or meeting link"):(ar?"رابط المشروع أو الشهادة":"Project/certificate link")} value={extra} onChange={setExtra}/>}
         {active==="portfolio"&&<Field label={ar?"النوع: skill أو project أو certificate أو link":"Type: skill, project, certificate or link"} value={category} onChange={setCategory}/>}
@@ -154,12 +170,19 @@ export default function FeatureHub({isArabic,userId}:Props){
         :active==="audio"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.status} · {new Date(x.starts_at).toLocaleString()}</Text><Button label={ar?"انضم كمستمع":"Join as listener"} onPress={()=>joinRoom(x)}/><Button label={ar?"اطلب التحدث (يتطلب إذن الميكروفون)":"Request to speak (microphone permission required)"} onPress={()=>requestToSpeak(x)}/>{x.host_id===userId&&(speakerRequests[x.id]||[]).map((request:any)=><Button key={request.user_id} label={ar?"قبول طلب متحدث":"Approve speaker request"} onPress={()=>approveSpeaker(x,request)}/>)}</>
         :active==="schedule"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.status} · {new Date(x.scheduled_at).toLocaleString()}</Text></>
         :active==="portfolio"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.item_type} · {x.description}</Text></>
+        :active==="directory"?<><Text style={s.itemTitle}>{x.display_name} · @{x.username}</Text><Text style={s.sub}>{x.specialty||""} {x.location?"· "+x.location:""}</Text><Text style={s.sub}>{(x.skills||[]).join(" · ")}</Text>{!!x.github_url&&<Text style={s.sub}>GitHub: {x.github_url}</Text>}</>
+        :active==="endorsements"?<><Text style={s.itemTitle}>{x.skill_name}</Text><Text style={s.sub}>{ar?"صاحب المهارة: ":"Profile: "}{x.profile_id}</Text></>
+        :active==="opportunities"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.opportunity_type} · {x.location||""}</Text><Text style={s.sub}>{x.description}</Text></>
+        :active==="collaborations"?<><Text style={s.itemTitle}>{x.title}</Text><Text style={s.sub}>{x.description}</Text><Text style={s.sub}>{(x.skills_needed||[]).join(" · ")}</Text><Text style={s.sub}>{x.status}</Text></>
+        :active==="mentorship"?<><Text style={s.itemTitle}>{x.topic}</Text><Text style={s.sub}>{x.message}</Text><Text style={s.sub}>{x.status}</Text>{x.mentor_id===userId&&x.status==="pending"&&<Button label={ar?"قبول طلب الإرشاد":"Accept mentorship request"} onPress={async()=>{const {error}=await supabase!.from("mentorship_requests").update({status:"accepted"}).eq("id",x.id).eq("mentor_id",userId);say(error?error.message:(ar?"تم قبول الطلب.":"Request accepted."));await load();}}/>}</>
+        :active==="reviews"?<><Text style={s.itemTitle}>{x.project_title} · {"★".repeat(x.rating||0)}</Text><Text style={s.sub}>{x.feedback}</Text></>
         :active==="drafts"?<><Text style={s.itemTitle}>{x.title||"Draft"}</Text><Text style={s.sub}>{x.body}</Text></>
         :<><Text style={s.itemTitle}>{x.name}</Text><Text style={s.sub}>{x.description}</Text><Button label={ar?"إدارة القائمة":"Manage list"} onPress={()=>setListId(x.id)}/></>}
         {active==="qa"&&questionId===x.id&&<><Field label={ar?"اكتب إجابتك":"Your answer"} value={answerDraft} onChange={setAnswerDraft}/><Button label={ar?"إرسال الإجابة":"Submit answer"} onPress={addAnswer}/></>}
         {active==="lists"&&listId===x.id&&<><Field label={ar?"اسم المستخدم لإضافته إلى القائمة":"Username to add"} value={extra} onChange={setExtra} placeholder="@username"/><Button label={ar?"إضافة إلى القائمة":"Add to list"} onPress={addListMember}/></>}
       </Card>)}
       {active==="qa"&&filtered.length===0&&<Text style={s.sub}>{ar?"لا توجد أسئلة بعد.":"No questions yet."}</Text>}
+      {active==="directory"&&<Card><Field label={ar?"ابحث عن تخصص أو مهارة":"Search specialty or skill"} value={q} onChange={setQ}/></Card>}
     </>}
   </View>;
 }
