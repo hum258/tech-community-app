@@ -71,3 +71,40 @@ create index if not exists answers_question_idx on public.answers(question_id);
 create index if not exists portfolio_user_idx on public.profile_portfolio_items(user_id);
 create index if not exists events_start_idx on public.events(starts_at);
 create index if not exists audio_rooms_start_idx on public.audio_rooms(starts_at);
+
+-- Award achievements through private trigger functions, not client-writable endpoints.
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+create or replace function private.award_first_question() returns trigger
+language plpgsql security definer set search_path=''
+as $$ begin
+ insert into public.user_achievements(user_id,achievement_id)
+ select new.author_id,a.id from public.achievements a where a.code='first_question'
+ on conflict do nothing;
+ return new;
+end $$;
+revoke all on function private.award_first_question() from public, anon, authenticated;
+create trigger award_first_question_after_insert after insert on public.questions
+for each row execute function private.award_first_question();
+create or replace function private.award_learning_starter() returns trigger
+language plpgsql security definer set search_path=''
+as $$ begin
+ insert into public.user_achievements(user_id,achievement_id)
+ select new.user_id,a.id from public.achievements a where a.code='learning_starter'
+ on conflict do nothing;
+ return new;
+end $$;
+revoke all on function private.award_learning_starter() from public, anon, authenticated;
+create trigger award_learning_starter_after_insert after insert on public.learning_path_progress
+for each row execute function private.award_learning_starter();
+create or replace function private.award_community_member() returns trigger
+language plpgsql security definer set search_path=''
+as $$ begin
+ insert into public.user_achievements(user_id,achievement_id)
+ select new.user_id,a.id from public.achievements a where a.code='community_member'
+ on conflict do nothing;
+ return new;
+end $$;
+revoke all on function private.award_community_member() from public, anon, authenticated;
+create trigger award_community_member_after_insert after insert on public.community_members
+for each row execute function private.award_community_member();
