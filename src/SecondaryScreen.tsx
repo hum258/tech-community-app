@@ -67,6 +67,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
   const [topicRows,setTopicRows]=useState<any[]>([]);
   const [followedTopics,setFollowedTopics]=useState<string[]>([]);
   const [fontScale,setFontScale]=useState(1);
+  const [trendingRows,setTrendingRows]=useState<any[]>([]);
 
 
   const loadProfile=useCallback(async()=>{
@@ -142,7 +143,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     setConversations(mapped);
   },[]);
 
-  useEffect(()=>{if(tab==="profile"||tab==="settings"||tab==="features")loadProfile();if(tab==="explore"){loadTopics();}if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
+  useEffect(()=>{if(tab==="profile"||tab==="settings"||tab==="features")loadProfile();if(tab==="explore"){loadTopics();loadTrending();}if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
 
   const showNotice=(v:string)=>setNotice(v);
   const saveProfile=async()=>{
@@ -316,6 +317,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     if(error){showNotice(error.message);return;}
     setMyPosts(old=>old.map(x=>x.id===p.id?{...x,pinned_at:next}:x).sort((a,b)=>Number(!!b.pinned_at)-Number(!!a.pinned_at)));
   };
+  const loadTrending=async()=>{if(!supabase)return;const {data,error}=await supabase.rpc("get_trending_posts");if(!error)setTrendingRows(data||[]);};
+  const toggleMuteViewedProfile=async()=>{if(!supabase||!viewedProfile||!userId)return;const {error}=await supabase.from("user_mutes").insert({muter_id:userId,muted_id:viewedProfile.id});if(error){showNotice(error.message);return;}setViewedProfile(null);showNotice(ar?"تم كتم الحساب.":"Account muted.");};
   const loadTopics=async()=>{
     if(!supabase||!userId)return;
     const [{data:topics},{data:mine}]=await Promise.all([supabase.from("topics").select("id,name,category").order("name"),supabase.from("profile_topic_follows").select("topic_id").eq("user_id",userId)]);
@@ -443,7 +446,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
       </View>
       <View style={s.row}>
         <Pressable onPress={()=>toggleFollow(viewedProfile.id)} style={[s.button,{flex:1},followingIds.includes(viewedProfile.id)&&s.secondaryButton]}><Text style={[s.buttonText,followingIds.includes(viewedProfile.id)&&s.secondaryButtonText]}>{followingIds.includes(viewedProfile.id)?(ar?"إلغاء المتابعة":"Unfollow"):(ar?"متابعة":"Follow")}</Text></Pressable>
-        <View style={{flexDirection:"row",gap:8,marginTop:12}}><Pressable onPress={reportViewedProfile} style={{padding:10,backgroundColor:"#FFF4E5",borderRadius:10}}><Text style={{color:"#A66A00",fontWeight:"700"}}>{ar?"إبلاغ":"Report"}</Text></Pressable><Pressable onPress={blockViewedProfile} style={{padding:10,backgroundColor:"#FCEBED",borderRadius:10}}><Text style={{color:C.red,fontWeight:"700"}}>{ar?"حظر الحساب":"Block account"}</Text></Pressable></View>
+        <View style={{flexDirection:"row",gap:8,marginTop:12}}><Pressable onPress={reportViewedProfile} style={{padding:10,backgroundColor:"#FFF4E5",borderRadius:10}}><Text style={{color:"#A66A00",fontWeight:"700"}}>{ar?"إبلاغ":"Report"}</Text></Pressable><Pressable onPress={blockViewedProfile} style={{padding:10,backgroundColor:"#FCEBED",borderRadius:10}}><Text style={{color:C.red,fontWeight:"700"}}>{ar?"حظر الحساب":"Block account"}</Text></Pressable><Pressable onPress={toggleMuteViewedProfile} style={{padding:10,backgroundColor:C.pale,borderRadius:10}}><Text style={{color:C.ink,fontWeight:"700"}}>{ar?"كتم":"Mute"}</Text></Pressable></View>
   <Pressable onPress={()=>startConversationWith(viewedProfile)} style={[s.button,{flex:1,backgroundColor:C.ink}]}><Text style={s.buttonText}>{ar?"مراسلة":"Message"}</Text></Pressable>
       </View>
       {viewedProfile.is_private&&<Text style={s.detail}>{ar?"هذا الحساب خاص.":"This account is private."}</Text>}
@@ -453,7 +456,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
 
     {!viewedProfile&&tab==="explore"&&<>
       <TextInput value={query} onChangeText={setQuery} placeholder={ar?"ابحث عن مجتمعات وتخصصات...":"Search communities and topics..."} placeholderTextColor="#9AA8B2" style={[s.input,ar&&s.rtl]}/>
-      <Text style={[s.section,ar&&s.rtl]}>{ar?"الأشخاص":"People"}</Text>
+      <Text style={[s.section,ar&&s.rtl]}>{ar?"الرائج هذا الأسبوع":"Trending this week"}</Text>{trendingRows.map(p=><View key={p.id} style={s.card}><Text style={s.cardTitle}>{p.title||p.body}</Text><Text style={s.detail}>{p.author_name} · {p.category}</Text><Text style={s.status}>{ar?("تفاعل "+p.score+" · إعجابات "+p.likes+" · تعليقات "+p.comments):("Score "+p.score+" · Likes "+p.likes+" · Comments "+p.comments)}</Text></View>)}{!trendingRows.length&&<Text style={s.empty}>{ar?"لا توجد منشورات رائجة بعد.":"No trending posts yet."}</Text>}<Text style={[s.section,ar&&s.rtl]}>{ar?"الأشخاص":"People"}</Text>
       {people.map(person=><Pressable key={person.id} onPress={()=>openProfile(person.id)} style={s.personCard}>
         {person.avatar_url?<Image source={{uri:person.avatar_url}} style={s.personAvatar}/>:<View style={s.personAvatarFallback}><MaterialCommunityIcons name={person.account_type==="company"?"domain":"account"} size={22} color={C.blue}/></View>}
         <View style={{flex:1}}>
