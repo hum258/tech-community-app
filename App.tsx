@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { BackHandler } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -70,6 +70,25 @@ function CommunityApp() {
   const [openPostMenuId, setOpenPostMenuId] = useState<string | number | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const postLayouts = useRef<Record<string,{y:number;height:number;authorId?:string}>>({});
+  const viewedThisSession = useRef<Set<string>>(new Set());
+  const [feedScrollY,setFeedScrollY] = useState(0);
+  const [feedViewportHeight,setFeedViewportHeight] = useState(0);
+
+  const recordVisiblePostViews = async (scrollY:number,viewportHeight:number) => {
+    if(!supabase||!currentUserId||viewportHeight<=0)return;
+    const visibleIds=Object.entries(postLayouts.current)
+      .filter(([id,layout])=>layout.authorId!==currentUserId&&layout.y<scrollY+viewportHeight&&layout.y+layout.height>scrollY)
+      .map(([id])=>id)
+      .filter(id=>!viewedThisSession.current.has(currentUserId+":"+id));
+    if(!visibleIds.length)return;
+    visibleIds.forEach(id=>viewedThisSession.current.add(currentUserId+":"+id));
+    const {error}=await supabase.from("post_views").upsert(
+      visibleIds.map(post_id=>({post_id,user_id:currentUserId})),
+      {onConflict:"post_id,user_id,viewed_on",ignoreDuplicates:true}
+    );
+    if(error)visibleIds.forEach(id=>viewedThisSession.current.delete(currentUserId+":"+id));
+  };
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -101,17 +120,14 @@ function CommunityApp() {
         setPosts(visibleRows);
         const ids=visibleRows.map(p=>p.id);
         if(ids.length){
-          const [{data: likes},{data: comments},{data: mine},{data:saves},{data:reposts},{data:views},{data:myReposts}] = await Promise.all([
+          const [{data: likes},{data: comments},{data: mine},{data:saves},{data:reposts},{data:myReposts}] = await Promise.all([
             client.from("post_likes").select("post_id").in("post_id",ids),
             client.from("comments").select("post_id").in("post_id",ids),
             client.from("post_likes").select("post_id").eq("user_id",session.user.id).in("post_id",ids),
             client.from("post_saves").select("post_id").in("post_id",ids),
             client.from("post_reposts").select("post_id").in("post_id",ids),
-            client.from("post_views").select("post_id").in("post_id",ids),
             client.from("post_reposts").select("post_id").eq("user_id",session.user.id).in("post_id",ids)
           ]);
-          const notMine=rows.filter(p=>p.authorId!==session.user.id).map(p=>({post_id:p.id,user_id:session.user.id}));
-          if(notMine.length) await client.from("post_views").upsert(notMine,{onConflict:"post_id,user_id,viewed_on",ignoreDuplicates:true});
           const {data:metrics}=await client.rpc("get_post_metrics",{post_ids:ids});
           setPosts(old=>old.map(p=>{const m=(metrics||[]).find((x:any)=>x.post_id===p.id);return {...p,likes:(likes||[]).filter((x:any)=>x.post_id===p.id).length,comments:(comments||[]).filter((x:any)=>x.post_id===p.id).length,views:Number(m?.views||0),reposts:Number(m?.reposts||0),savesCount:Number(m?.saves||0),shares:Number(m?.shares||0)};}));
           setLiked((mine||[]).map((x:any)=>x.post_id)); setSaved((saves||[]).filter((x:any)=>x.user_id===session.user.id).map((x:any)=>x.post_id)); setReposted((myReposts||[]).map((x:any)=>x.post_id));
@@ -315,7 +331,7 @@ function CommunityApp() {
           </View>
         </View>
 
-        <ScrollView style={[styles.scroll,isDark&&{backgroundColor:"#101820"}]} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={[styles.scroll,isDark&&{backgroundColor:"#101820"}]} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} onLayout={e=>{const h=e.nativeEvent.layout.height;setFeedViewportHeight(h);void recordVisiblePostViews(feedScrollY,h);}} onScroll={e=>{const y=e.nativeEvent.contentOffset.y;const h=e.nativeEvent.layoutMeasurement.height;setFeedScrollY(y);setFeedViewportHeight(h);void recordVisiblePostViews(y,h);}} scrollEventThrottle={300}>
           {activeTab !== "home" ? <SecondaryScreen tab={activeTab==="notifications"?"settings":activeTab} isArabic={isArabic} isDark={isDark} simpleMode={simpleMode} initialSettingsSection={activeTab==="notifications"?"notifications":undefined} onToggleTheme={()=>setIsDark(v=>!v)} onToggleSimpleMode={()=>setSimpleMode(v=>!v)} onBackHome={() => setActiveTab("home")} onOpenMessages={() => setActiveTab("messages")} onOpenComposer={()=>{setActiveTab("home");setComposerType("post");setComposerOpen(true);}} /> : <>
           <View style={[styles.hero,isDark&&{backgroundColor:"#172632",borderColor:"#263746"},simpleMode&&{display:"none"}]}>
             <View style={styles.heroGlow} />
@@ -394,7 +410,7 @@ function CommunityApp() {
           {visiblePosts.map(post => {
             const isLiked = liked.includes(post.id);
             const isSaved = saved.includes(post.id);
-            return <View key={post.id} style={[styles.postCard,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}>
+            return <View key={post.id} onLayout={e=>{const {y,height}=e.nativeEvent.layout;postLayouts.current[String(post.id)]={y,height,authorId:post.authorId};void recordVisiblePostViews(feedScrollY,feedViewportHeight);}} style={[styles.postCard,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}>
               <View style={styles.postHeader}>
                 {post.avatarUrl ? <Image source={{uri:post.avatarUrl}} style={[styles.avatar,{overflow:"hidden"}]} /> : <View style={[styles.avatar,{backgroundColor:post.color+"22",borderColor:post.color+"66"}]}><MaterialCommunityIcons name={post.icon} size={23} color={post.color}/></View>}
                 <View style={styles.authorInfo}>
