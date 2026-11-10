@@ -43,6 +43,8 @@ function CommunityApp() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [feedNotice, setFeedNotice] = useState("");
   const [openPostMenuId, setOpenPostMenuId] = useState<string | number | null>(null);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
 
   useEffect(() => {
     const client = supabase;
@@ -53,12 +55,16 @@ function CommunityApp() {
       if (!alive) return;
       setCurrentUserId(session?.user.id ?? null);
       if (!session) return;
+      const {data: blockRows}=await client.from("user_blocks").select("blocked_id").eq("blocker_id",session.user.id);
+      const blockedIds=(blockRows||[]).map((x:any)=>x.blocked_id);
+      setBlockedUserIds(blockedIds);
       const { data, error } = await client.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,hide_like_count,profiles(display_name,specialty,account_type,avatar_url,is_verified)").order("created_at", { ascending: false }).limit(50);
       if (error) { setFeedNotice("تعذر تحميل المنشورات من قاعدة البيانات. تأكد من تشغيل ترحيل 0003."); return; }
       if (data && alive) {
         const rows: Post[] = data.map((p: any) => ({ id:p.id, authorId:p.author_id, hideLikeCount:!!p.hide_like_count, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], imageUrl:p.image_url, avatarUrl:p.profiles?.avatar_url, isVerified:!!p.profiles?.is_verified, accountType:p.profiles?.account_type, likes:0, comments:0, views:0, reposts:0, savesCount:0, icon:"account-outline", color:"#1D9BF0" }));
-        setPosts(rows);
-        const ids=rows.map(p=>p.id);
+        const visibleRows=rows.filter(p=>!blockedIds.includes(String(p.authorId||"")));
+        setPosts(visibleRows);
+        const ids=visibleRows.map(p=>p.id);
         if(ids.length){
           const [{data: likes},{data: comments},{data: mine},{data:saves},{data:reposts},{data:views},{data:myReposts}] = await Promise.all([
             client.from("post_likes").select("post_id").in("post_id",ids),
@@ -165,6 +171,31 @@ function CommunityApp() {
   const openPostMenu=(post:Post)=>{
     setOpenPostMenuId(current=>current===post.id?null:post.id);
   };
+  const startEditPost=(post:Post)=>{
+    if(!supabase||!currentUserId||post.authorId!==currentUserId||typeof post.id!=="string")return;
+    setEditingPostId(post.id);
+    setComposerType("article");
+    setArticleTitle(post.title||"");
+    setDraft(post.body||"");
+    setPostCategory(post.category||"عام");
+    setSelectedImage(null);
+    setComposerOpen(true);
+    setOpenPostMenuId(null);
+  };
+  const blockPostAuthor=(post:Post)=>{
+    if(!supabase||!currentUserId||!post.authorId||post.authorId===currentUserId)return;
+    Alert.alert("حظر الحساب","لن تظهر لك منشورات هذا الحساب بعد الآن.",[
+      {text:"إلغاء",style:"cancel"},
+      {text:"حظر الحساب",style:"destructive",onPress:async()=>{
+        const {error}=await supabase!.from("user_blocks").insert({blocker_id:currentUserId,blocked_id:post.authorId});
+        if(error){setFeedNotice("تعذر حظر الحساب: "+error.message);return;}
+        setBlockedUserIds(old=>old.includes(post.authorId!)?old:[...old,post.authorId!]);
+        setPosts(old=>old.filter(p=>p.authorId!==post.authorId));
+        setOpenPostMenuId(null);
+        setFeedNotice("تم حظر الحساب وإخفاء منشوراته.");
+      }}
+    ]);
+  };
 
   const reportPost=async(id:string|number)=>{
     if(!supabase||!currentUserId||typeof id!=="string")return;
@@ -211,13 +242,16 @@ function CommunityApp() {
     }
     const content = draft.trim();
     const finalTitle=composerType==="article"?(articleTitle.trim().slice(0,120)||"مقال جديد"):(content.slice(0,80)||"صورة");
-    const {error}=await supabase.from("posts").insert({author_id:currentUserId,category:postCategory,title:finalTitle,body:content,tags:[],image_url:imageUrl});
-    if(error){setFeedNotice("تعذر نشر المنشور: "+error.message);return;}
-    setDraft(""); setArticleTitle(""); setPostCategory("عام"); setSelectedImage(null); setComposerOpen(false); setComposerType("post");
+    const saveResult=editingPostId
+      ? await supabase.from("posts").update({category:postCategory,title:finalTitle,body:content,...(imageUrl?{image_url:imageUrl}:{})}).eq("id",editingPostId).eq("author_id",currentUserId)
+      : await supabase.from("posts").insert({author_id:currentUserId,category:postCategory,title:finalTitle,body:content,tags:[],image_url:imageUrl});
+    if(saveResult.error){setFeedNotice(editingPostId?"تعذر تعديل المنشور: "+saveResult.error.message:"تعذر نشر المنشور: "+saveResult.error.message);return;}
+    const wasEditing=!!editingPostId;
+    setDraft(""); setArticleTitle(""); setPostCategory("عام"); setSelectedImage(null); setComposerOpen(false); setComposerType("post"); setEditingPostId(null);
     const {data}=await supabase.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,hide_like_count,profiles(display_name,specialty,account_type,avatar_url,is_verified)").order("created_at",{ascending:false}).limit(50);
     if(data)setPosts(data.map((p:any)=>({id:p.id,authorId:p.author_id,hideLikeCount:!!p.hide_like_count,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],imageUrl:p.image_url,avatarUrl:p.profiles?.avatar_url,isVerified:!!p.profiles?.is_verified,accountType:p.profiles?.account_type,likes:0,comments:0,icon:"account-outline",color:"#1D9BF0"})));
-    setFeedNotice("تم النشر بنجاح.");
-    setTimeout(()=>setFeedNotice(current=>current==="تم النشر بنجاح."?"":current),1800);
+    setFeedNotice(wasEditing?"تم تعديل المنشور بنجاح.":"تم النشر بنجاح.");
+    setTimeout(()=>setFeedNotice(current=>current===(wasEditing?"تم تعديل المنشور بنجاح.":"تم النشر بنجاح.")?"":current),1800);
   };
 
   return (
@@ -299,8 +333,8 @@ function CommunityApp() {
           </ScrollView>
 
           {composerOpen && <View style={styles.composer}>
-            <Text style={[styles.composerTitle, isArabic && styles.rtl]}>{composerType==="article"?(isArabic?"اكتب مقالك":"Write an article"):(isArabic?"أنشئ منشورك":"Create a post")}</Text>
-            {composerType==="article"&&<TextInput value={articleTitle} onChangeText={setArticleTitle} placeholder={isArabic?"عنوان المقال":"Article title"} placeholderTextColor="#657786" style={[styles.composerInput,{minHeight:46,textAlignVertical:"center"},isArabic&&styles.rtl]}/>}
+            <Text style={[styles.composerTitle, isArabic && styles.rtl]}>{editingPostId?(isArabic?"تعديل المنشور":"Edit post"):composerType==="article"?(isArabic?"اكتب مقالك":"Write an article"):(isArabic?"أنشئ منشورك":"Create a post")}</Text>
+            {(composerType==="article"||editingPostId)&&<TextInput value={articleTitle} onChangeText={setArticleTitle} placeholder={isArabic?"عنوان المنشور":"Post title"} placeholderTextColor="#657786" style={[styles.composerInput,{minHeight:46,textAlignVertical:"center"},isArabic&&styles.rtl]}/>}
             <TextInput multiline value={draft} onChangeText={setDraft} placeholder={composerType==="article"?(isArabic?"محتوى المقال...":"Article content..."):labels.compose} placeholderTextColor="#657786" style={[styles.composerInput, isArabic && styles.rtl]} />
             <Text style={{color:"#657786",fontSize:11,marginTop:10}}>{isArabic?"تصنيف المحتوى":"Content category"}</Text>
             <View style={{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:7}}>
@@ -313,8 +347,8 @@ function CommunityApp() {
             <View style={styles.composerActions}>
               <Pressable onPress={saveCurrentDraft}><Text style={styles.cancelText}>{isArabic?"حفظ كمسودة":"Save draft"}</Text></Pressable>
               <Pressable onPress={openSavedDrafts}><Text style={styles.cancelText}>{isArabic?"مسوداتي":"My drafts"}</Text></Pressable>
-              <Pressable onPress={()=>{setComposerOpen(false);setSelectedImage(null);}}><Text style={styles.cancelText}>{labels.cancel}</Text></Pressable>
-              <Pressable onPress={publish} style={styles.publishButton}><Text style={styles.publishText}>{labels.publish}</Text></Pressable>
+              <Pressable onPress={()=>{setComposerOpen(false);setSelectedImage(null);setEditingPostId(null);setArticleTitle("");setDraft("");}}><Text style={styles.cancelText}>{labels.cancel}</Text></Pressable>
+              <Pressable onPress={publish} style={styles.publishButton}><Text style={styles.publishText}>{editingPostId?(isArabic?"حفظ التعديل":"Save changes"):labels.publish}</Text></Pressable>
             </View>
           </View>}
 
@@ -330,16 +364,20 @@ function CommunityApp() {
                   <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text>{post.isVerified&&<Pressable onPress={()=>Alert.alert("توثيق الحساب","تم التوثيق من شركة المجتمع التقني.\\nالمؤسسة: المجتمع التقني – Tech Community.")}><MaterialCommunityIcons name="check-decagram" size={15} color={post.accountType==="company"?"#89939D":"#1D9BF0"}/></Pressable>}</View>
                   <Text style={styles.authorRole}>{post.role} · {post.time}</Text>
                 </View>
-                <Pressable hitSlop={12} style={[styles.moreButton,{position:"absolute",left:12,top:12,zIndex:5,padding:7,borderRadius:10,backgroundColor:"#F5F8FA"}]} onPress={()=>openPostMenu(post)}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#657786"/></Pressable>
+                <Pressable hitSlop={14} accessibilityRole="button" accessibilityLabel={isArabic?"خيارات المنشور":"Post options"} style={{width:38,height:38,marginLeft:8,alignItems:"center",justifyContent:"center",borderRadius:12,backgroundColor:"#EEF3F7",borderWidth:1,borderColor:"#D5E0E8"}} onPress={()=>openPostMenu(post)}><MaterialCommunityIcons name="dots-vertical" size={23} color="#263746"/></Pressable>
               </View>
-              {openPostMenuId===post.id&&<View style={{marginTop:8,marginBottom:8,padding:8,borderWidth:1,borderColor:"#DCE5EC",borderRadius:13,backgroundColor:"#FFFFFF",elevation:3,shadowColor:"#000",shadowOpacity:0.08,shadowRadius:8}}>
-                <Text style={{fontSize:12,fontWeight:"900",color:"#17202A",textAlign:isArabic?"right":"left",paddingHorizontal:8,paddingVertical:5}}>{isArabic?"خيارات المنشور":"Post options"}</Text>
-                <View style={{flexDirection:"row",flexWrap:"wrap",gap:7}}>
-                  <Pressable onPress={()=>{toggleSave(post.id);setOpenPostMenuId(null);}} style={{flexDirection:"row",alignItems:"center",gap:6,padding:10,borderRadius:9,backgroundColor:"#F5F8FA"}}><MaterialCommunityIcons name={isSaved?"bookmark-off-outline":"bookmark-outline"} size={18} color="#1D9BF0"/><Text style={{color:"#17202A",fontSize:12,fontWeight:"700"}}>{isSaved?(isArabic?"إلغاء الحفظ":"Unsave"):(isArabic?"حفظ المنشور":"Save post")}</Text></Pressable>
-                  <Pressable onPress={()=>{sharePost(post);setOpenPostMenuId(null);}} style={{flexDirection:"row",alignItems:"center",gap:6,padding:10,borderRadius:9,backgroundColor:"#F5F8FA"}}><MaterialCommunityIcons name="share-variant-outline" size={18} color="#657786"/><Text style={{color:"#17202A",fontSize:12,fontWeight:"700"}}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
-                  {post.authorId===currentUserId&&<Pressable onPress={()=>{setOpenPostMenuId(null);toggleLikeVisibility(post);}} style={{flexDirection:"row",alignItems:"center",gap:6,padding:10,borderRadius:9,backgroundColor:"#F5F8FA"}}><MaterialCommunityIcons name="heart-off-outline" size={18} color="#657786"/><Text style={{color:"#17202A",fontSize:12,fontWeight:"700"}}>{post.hideLikeCount?(isArabic?"إظهار الإعجابات":"Show likes"):(isArabic?"إخفاء الإعجابات":"Hide likes")}</Text></Pressable>}
-                  {post.authorId===currentUserId?<Pressable onPress={()=>{setOpenPostMenuId(null);deletePost(post);}} style={{flexDirection:"row",alignItems:"center",gap:6,padding:10,borderRadius:9,backgroundColor:"#FCEBED"}}><MaterialCommunityIcons name="trash-can-outline" size={18} color="#D9485F"/><Text style={{color:"#D9485F",fontSize:12,fontWeight:"800"}}>{isArabic?"حذف المنشور":"Delete post"}</Text></Pressable>:<Pressable onPress={()=>{setOpenPostMenuId(null);reportPost(post.id);}} style={{flexDirection:"row",alignItems:"center",gap:6,padding:10,borderRadius:9,backgroundColor:"#F5F8FA"}}><MaterialCommunityIcons name="flag-outline" size={18} color="#D9485F"/><Text style={{color:"#17202A",fontSize:12,fontWeight:"700"}}>{isArabic?"إبلاغ":"Report"}</Text></Pressable>}
-                </View>
+              {openPostMenuId===post.id&&<View style={{marginTop:8,marginBottom:10,padding:7,borderWidth:1,borderColor:"#DCE5EC",borderRadius:13,backgroundColor:"#FFFFFF",elevation:3,shadowColor:"#000",shadowOpacity:0.08,shadowRadius:8}}>
+                <Text style={{fontSize:12,fontWeight:"900",color:"#536471",textAlign:isArabic?"right":"left",paddingHorizontal:10,paddingVertical:7}}>{isArabic?"خيارات المنشور":"Post options"}</Text>
+                {post.authorId===currentUserId&&<Pressable onPress={()=>startEditPost(post)} style={{minHeight:44,flexDirection:"row",alignItems:"center",gap:11,paddingHorizontal:11,borderRadius:9}}><MaterialCommunityIcons name="pencil-outline" size={19} color="#1D9BF0"/><Text style={{color:"#17202A",fontSize:13,fontWeight:"700"}}>{isArabic?"تعديل المنشور":"Edit post"}</Text></Pressable>}
+                <Pressable onPress={()=>{toggleSave(post.id);setOpenPostMenuId(null);}} style={{minHeight:44,flexDirection:"row",alignItems:"center",gap:11,paddingHorizontal:11,borderRadius:9}}><MaterialCommunityIcons name={isSaved?"bookmark-off-outline":"bookmark-outline"} size={19} color="#1D9BF0"/><Text style={{color:"#17202A",fontSize:13,fontWeight:"700"}}>{isSaved?(isArabic?"إلغاء الحفظ":"Unsave"):(isArabic?"حفظ المنشور":"Save post")}</Text></Pressable>
+                <Pressable onPress={()=>{sharePost(post);setOpenPostMenuId(null);}} style={{minHeight:44,flexDirection:"row",alignItems:"center",gap:11,paddingHorizontal:11,borderRadius:9}}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#657786"/><Text style={{color:"#17202A",fontSize:13,fontWeight:"700"}}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
+                {post.authorId===currentUserId?<>
+                  <Pressable onPress={()=>{setOpenPostMenuId(null);toggleLikeVisibility(post);}} style={{minHeight:44,flexDirection:"row",alignItems:"center",gap:11,paddingHorizontal:11,borderRadius:9}}><MaterialCommunityIcons name="heart-off-outline" size={19} color="#657786"/><Text style={{color:"#17202A",fontSize:13,fontWeight:"700"}}>{post.hideLikeCount?(isArabic?"إظهار الإعجابات":"Show likes"):(isArabic?"إخفاء الإعجابات":"Hide likes")}</Text></Pressable>
+                  <Pressable onPress={()=>{setOpenPostMenuId(null);deletePost(post);}} style={{minHeight:44,flexDirection:"row",alignItems:"center",gap:11,paddingHorizontal:11,borderRadius:9,backgroundColor:"#FFF4F4"}}><MaterialCommunityIcons name="trash-can-outline" size={19} color="#D9485F"/><Text style={{color:"#D9485F",fontSize:13,fontWeight:"800"}}>{isArabic?"حذف المنشور نهائياً":"Delete post permanently"}</Text></Pressable>
+                </>:<>
+                  <Pressable onPress={()=>{setOpenPostMenuId(null);blockPostAuthor(post);}} style={{minHeight:44,flexDirection:"row",alignItems:"center",gap:11,paddingHorizontal:11,borderRadius:9}}><MaterialCommunityIcons name="account-cancel-outline" size={19} color="#D9485F"/><Text style={{color:"#17202A",fontSize:13,fontWeight:"700"}}>{isArabic?"حظر الحساب":"Block account"}</Text></Pressable>
+                  <Pressable onPress={()=>{setOpenPostMenuId(null);reportPost(post.id);}} style={{minHeight:44,flexDirection:"row",alignItems:"center",gap:11,paddingHorizontal:11,borderRadius:9}}><MaterialCommunityIcons name="flag-outline" size={19} color="#657786"/><Text style={{color:"#17202A",fontSize:13,fontWeight:"700"}}>{isArabic?"الإبلاغ عن المنشور":"Report post"}</Text></Pressable>
+                </>}
               </View>}
               <View style={styles.postCategory}><Text style={styles.categoryText}>{post.category}</Text></View>
               <Text style={[styles.postTitle, isArabic && styles.rtl]}>{post.title}</Text>
