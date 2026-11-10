@@ -246,7 +246,7 @@ function CommunityApp() {
         </View>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {activeTab !== "home" ? <SecondaryScreen tab={activeTab} isArabic={isArabic} onBackHome={() => setActiveTab("home")} onOpenMessages={() => setActiveTab("messages")} /> : <>
+          {activeTab !== "home" ? <SecondaryScreen tab={activeTab} isArabic={isArabic} onBackHome={() => setActiveTab("home")} onOpenMessages={() => setActiveTab("messages")} onOpenComposer={()=>{setActiveTab("home");setComposerType("post");setComposerOpen(true);}} /> : <>
           <View style={styles.hero}>
             <View style={styles.heroGlow} />
             <View style={styles.heroTop}>
