@@ -37,6 +37,9 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
   const [activePeer,setActivePeer]=useState("");
   const [messages,setMessages]=useState<any[]>([]);
   const [messageDraft,setMessageDraft]=useState("");
+  const [newCommunityName,setNewCommunityName]=useState("");
+  const [newCommunityDescription,setNewCommunityDescription]=useState("");
+  const [newCommunitySpecialty,setNewCommunitySpecialty]=useState("");
   const [coverUrl,setCoverUrl]=useState("");
   const [accountMode,setAccountMode]=useState<"personal"|"business"|"company">("personal");
   const [hideFollowers,setHideFollowers]=useState(false);
@@ -66,7 +69,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     const {data:rows}=await supabase.from("communities").select("id,name,description,specialty").order("name");
     if(rows)setCommunities(rows as Community[]);
     const {data:{user}}=await supabase.auth.getUser();
-    if(user){const {data:members}=await supabase.from("community_members").select("community_id").eq("user_id",user.id);setJoined((members||[]).map((m:any)=>m.community_id));}
+    if(user){setUserId(user.id);const {data:members}=await supabase.from("community_members").select("community_id").eq("user_id",user.id);setJoined((members||[]).map((m:any)=>m.community_id));}
   },[]);
 
   const loadPeople=useCallback(async()=>{
@@ -119,6 +122,17 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     if(!/^[a-zA-Z0-9_]{3,20}$/.test(username.trim())){showNotice(ar?"اسم المستخدم يجب أن يكون 3–20 حرفاً أو رقماً أو _.":"Username must be 3–20 letters, numbers or underscores.");return;}
     setBusy(true);const {error}=await supabase.from("profiles").update({display_name:displayName.trim(),username:username.trim().toLowerCase(),bio:bio.trim(),specialty:specialty.trim()||null,is_private:privateAccount,account_mode:accountMode,hide_followers:hideFollowers}).eq("id",userId);setBusy(false);
     if(error){showNotice(error.message);return;}setEdit(false);showNotice(ar?"تم حفظ الملف الشخصي.":"Profile saved.");loadProfile();
+  };
+
+  const createCommunity=async()=>{
+    if(!supabase||!userId||!newCommunityName.trim()){showNotice(ar?"اكتب اسم المجتمع أولاً.":"Enter a community name.");return;}
+    setBusy(true);
+    const {data,error}=await supabase.from("communities").insert({name:newCommunityName.trim(),description:newCommunityDescription.trim(),specialty:newCommunitySpecialty.trim()||"عام",owner_id:userId}).select("id").single();
+    if(error){setBusy(false);showNotice(ar?"تعذر إنشاء المجتمع: ":"Could not create community: "+error.message);return;}
+    const joinedResult=await supabase.from("community_members").insert({community_id:data.id,user_id:userId,role:"moderator"});
+    setBusy(false);
+    if(joinedResult.error){showNotice(joinedResult.error.message);return;}
+    setNewCommunityName("");setNewCommunityDescription("");setNewCommunitySpecialty("");showNotice(ar?"تم إنشاء المجتمع والانضمام إليه.":"Community created and joined.");await loadGroups();
   };
 
   const toggleCommunity=async(id:string)=>{
