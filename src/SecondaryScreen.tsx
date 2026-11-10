@@ -339,7 +339,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
   const loadConversationMessages=async(id:string)=>{
     if(!supabase)return;
     const {data,error}=await supabase.from("messages").select("id,sender_id,body,image_url,created_at,read_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(100);
-    if(error){showNotice(error.message);return;}setMessages(data||[]);if(userId)await supabase.from("messages").update({read_at:new Date().toISOString()}).eq("conversation_id",id).neq("sender_id",userId).is("read_at",null);
+    if(error){showNotice(error.message);return;}setMessages(data||[]);if(userId)await supabase.rpc("mark_conversation_read",{conversation:id});
   };
 
   const sendMessage=async()=>{
