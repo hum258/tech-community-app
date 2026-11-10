@@ -66,7 +66,12 @@ function CommunityApp() {
     };
     load();
     const { data: listener } = client.auth.onAuthStateChange((_event, session)=>{setCurrentUserId(session?.user.id ?? null); if(session) load();});
-    return ()=>{alive=false;listener.subscription.unsubscribe();};
+    const feedChannel = client.channel("live-public-feed")
+      .on("postgres_changes",{event:"*",schema:"public",table:"posts"},()=>{if(alive) void load();})
+      .on("postgres_changes",{event:"*",schema:"public",table:"post_likes"},()=>{if(alive) void load();})
+      .on("postgres_changes",{event:"*",schema:"public",table:"comments"},()=>{if(alive) void load();})
+      .subscribe();
+    return ()=>{alive=false;listener.subscription.unsubscribe();void client.removeChannel(feedChannel);};
   }, []);
 
   const isArabic = language === "ar";
