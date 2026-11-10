@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "./lib/supabase";
 
-type Props = { tab: string; isArabic: boolean; onBackHome: () => void };
+type Props = { tab: string; isArabic: boolean; onBackHome: () => void; onOpenMessages: () => void };
 type Profile = { id:string; account_type:"personal"|"company"; account_mode:"personal"|"business"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; hide_followers:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null; avatar_url:string|null; cover_url:string|null; is_verified:boolean };
 type Community = { id:string; name:string; description:string; specialty:string };
 type Conversation = { id:string; created_at:string; peerName:string; peerUsername:string };
@@ -48,6 +48,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
   const [myPosts,setMyPosts]=useState<any[]>([]);
   const [viewedProfile,setViewedProfile]=useState<any|null>(null);
   const [viewedPosts,setViewedPosts]=useState<any[]>([]);
+  const [viewedStats,setViewedStats]=useState({posts:0,followers:0,following:0});
 
 
   const loadProfile=useCallback(async()=>{
@@ -198,8 +199,13 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     setBusy(true);
     const {data,error}=await supabase.from("profiles").select("id,display_name,username,bio,specialty,avatar_url,cover_url,is_verified,account_type,account_mode,is_private,hide_followers").eq("id",id).maybeSingle();
     if(error||!data){setBusy(false);showNotice(ar?"تعذر فتح الحساب.":"Could not open profile.");return;}
-    const {data:rows}=await supabase.from("posts").select("id,title,body,image_url,created_at").eq("author_id",id).order("created_at",{ascending:false}).limit(50);
-    setViewedProfile(data);setViewedPosts(rows||[]);setBusy(false);
+    const [postsResult,followersResult,followingResult]=await Promise.all([
+      supabase.from("posts").select("id,title,body,image_url,created_at").eq("author_id",id).order("created_at",{ascending:false}).limit(50),
+      supabase.from("profile_follows").select("follower_id",{count:"exact",head:true}).eq("following_id",id),
+      supabase.from("profile_follows").select("following_id",{count:"exact",head:true}).eq("follower_id",id)
+    ]);
+    setViewedProfile(data);setViewedPosts(postsResult.data||[]);
+    setViewedStats({posts:postsResult.data?.length||0,followers:followersResult.count||0,following:followingResult.count||0});setBusy(false);
   };
 
   const chooseAvatar=async()=>{
@@ -222,15 +228,23 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     finally{setBusy(false);}
   };
 
+  const startConversationWith=async(person:any)=>{
+    if(!supabase||!person?.id||!userId)return;
+    if(person.id===userId){showNotice(ar?"لا يمكنك مراسلة نفسك.":"You cannot message yourself.");return;}
+    setBusy(true);
+    const {data,error}=await supabase.rpc("create_direct_conversation",{target_user:person.id});
+    setBusy(false);
+    if(error||!data){showNotice(error?.message||"تعذر فتح المحادثة.");return;}
+    setActiveConversation(data);setActivePeer(person.display_name||person.username||"عضو");await loadMessages();await loadConversationMessages(data);onOpenMessages();
+  };
+
   const startConversation=async()=>{
     if(!supabase||!targetUsername.trim())return;
     setBusy(true);
     const {data:person,error:findError}=await supabase.from("profiles").select("id,display_name,username").eq("username",targetUsername.trim().replace(/^@/,"").toLowerCase()).maybeSingle();
-    if(findError||!person){setBusy(false);showNotice(ar?"لم نعثر على هذا المستخدم أو أن حسابه غير متاح.":"User not found or unavailable.");return;}
-    if(person.id===userId){setBusy(false);showNotice(ar?"لا يمكنك بدء محادثة مع نفسك.":"You cannot message yourself.");return;}
-    const {data,error}=await supabase.rpc("create_direct_conversation",{target_user:person.id});
-    setBusy(false);if(error||!data){showNotice(error?.message||"Could not create conversation.");return;}
-    setActiveConversation(data);setActivePeer(person.display_name||person.username);setTargetUsername("");await loadMessages();await loadConversationMessages(data);
+    setBusy(false);
+    if(findError||!person){showNotice(ar?"لم نعثر على هذا المستخدم أو أن حسابه غير متاح.":"User not found or unavailable.");return;}
+    setTargetUsername("");await startConversationWith(person);
   };
 
   const loadConversationMessages=async(id:string)=>{
@@ -272,7 +286,15 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
       </View>
       <Text style={s.bio}>{viewedProfile.bio||""}</Text>
       {!!viewedProfile.specialty&&<Text style={s.detail}>{viewedProfile.specialty}</Text>}
-      <Pressable onPress={()=>toggleFollow(viewedProfile.id)} style={[s.button,followingIds.includes(viewedProfile.id)&&s.secondaryButton]}><Text style={[s.buttonText,followingIds.includes(viewedProfile.id)&&s.secondaryButtonText]}>{followingIds.includes(viewedProfile.id)?(ar?"إلغاء المتابعة":"Unfollow"):(ar?"متابعة":"Follow")}</Text></Pressable>
+      <View style={s.statsRow}>
+        <View style={s.stat}><Text style={s.statNum}>{viewedStats.posts}</Text><Text style={s.statLabel}>{ar?"المنشورات":"Posts"}</Text></View>
+        <View style={s.stat}><Text style={s.statNum}>{viewedStats.followers}</Text><Text style={s.statLabel}>{ar?"المتابعون":"Followers"}</Text></View>
+        <View style={s.stat}><Text style={s.statNum}>{viewedStats.following}</Text><Text style={s.statLabel}>{ar?"يتابع":"Following"}</Text></View>
+      </View>
+      <View style={s.row}>
+        <Pressable onPress={()=>toggleFollow(viewedProfile.id)} style={[s.button,{flex:1},followingIds.includes(viewedProfile.id)&&s.secondaryButton]}><Text style={[s.buttonText,followingIds.includes(viewedProfile.id)&&s.secondaryButtonText]}>{followingIds.includes(viewedProfile.id)?(ar?"إلغاء المتابعة":"Unfollow"):(ar?"متابعة":"Follow")}</Text></Pressable>
+        <Pressable onPress={()=>startConversationWith(viewedProfile)} style={[s.button,{flex:1,backgroundColor:C.ink}]}><Text style={s.buttonText}>{ar?"مراسلة":"Message"}</Text></Pressable>
+      </View>
       {viewedProfile.is_private&&<Text style={s.detail}>{ar?"هذا الحساب خاص.":"This account is private."}</Text>}
       {viewedPosts.map(p=><View key={p.id} style={s.card}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}</View>)}
       {!viewedPosts.length&&<Text style={s.empty}>{ar?"لا توجد منشورات بعد.":"No posts yet."}</Text>}
