@@ -26,6 +26,7 @@ function CommunityApp() {
   const [query, setQuery] = useState("");
   const [liked, setLiked] = useState<Array<string | number>>([]);
   const [saved, setSaved] = useState<Array<string | number>>([]);
+  const [reposted,setReposted]=useState<Array<string>>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [composerOpen, setComposerOpen] = useState(false);
   const [showComposerChoices, setShowComposerChoices] = useState(false);
@@ -129,6 +130,19 @@ function CommunityApp() {
     if(error){setFeedNotice("تعذر تحديث إعداد الإعجابات: "+error.message);return;}
     setPosts(old=>old.map(p=>p.id===post.id?{...p,hideLikeCount:next}:p));
     setFeedNotice(next?"تم إخفاء عدد الإعجابات عن هذا المنشور.":"تم إظهار عدد الإعجابات.");
+  };
+
+  const toggleRepost=async(id:string|number)=>{
+    if(!supabase||!currentUserId||typeof id!=="string"){setFeedNotice("سجّل الدخول لإعادة النشر.");return;}
+    const exists=reposted.includes(id);
+    const {error}=exists?await supabase.from("post_reposts").delete().eq("post_id",id).eq("user_id",currentUserId):await supabase.from("post_reposts").insert({post_id:id,user_id:currentUserId});
+    if(error){setFeedNotice(error.message);return;}
+    setReposted(old=>exists?old.filter(x=>x!==id):[...old,id]);
+    setFeedNotice(exists?"تم إلغاء إعادة النشر.":"تمت إعادة نشر المنشور.");
+  };
+  const reportPost=async(id:string|number)=>{
+    if(!supabase||!currentUserId||typeof id!=="string")return;
+    Alert.alert("الإبلاغ عن المنشور","اختر سبب الإبلاغ",["محتوى مزعج","معلومات مضللة","إساءة أو مضايقة"].map(reason=>({text:reason,onPress:async()=>{const {error}=await supabase.from("content_reports").insert({reporter_id:currentUserId,post_id:id,reason});setFeedNotice(error?error.message:"تم إرسال البلاغ للمراجعة.");}})).concat([{text:"إلغاء",style:"cancel"}] as any));
   };
 
   const toggleSave = async (id:string | number) => {
@@ -296,6 +310,8 @@ function CommunityApp() {
                 <Pressable style={styles.action} onPress={()=>{const opening=commentingPost!==post.id;setCommentingPost(opening?post.id:null);setCommentDraft("");if(opening&&typeof post.id==="string")loadPostComments(post.id);}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{isArabic?"تعليق":"Comment"} · {post.comments}</Text></Pressable>
                 <Pressable style={styles.action} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#657786"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
                 <Pressable style={styles.saveAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{isSaved?(isArabic?"محفوظ":"Saved"):(isArabic?"حفظ":"Save")}</Text></Pressable>
+                <Pressable style={styles.action} onPress={()=>toggleRepost(post.id)}><MaterialCommunityIcons name="repeat" size={19} color={reposted.includes(String(post.id))?"#168A62":"#657786"}/><Text style={styles.actionText}>{reposted.includes(String(post.id))?(isArabic?"أُعيد نشره":"Reposted"):(isArabic?"إعادة نشر":"Repost")}</Text></Pressable>
+                <Pressable style={styles.action} onPress={()=>reportPost(post.id)}><MaterialCommunityIcons name="flag-outline" size={18} color="#A66A00"/><Text style={styles.actionText}>{isArabic?"إبلاغ":"Report"}</Text></Pressable>
               </View>
               {commentingPost===post.id && <View style={styles.commentPanel}>
                 {(postComments[String(post.id)]||[]).map((comment,index)=><View key={index} style={styles.commentBubble}><Text style={styles.commentAuthor}>{isArabic?"أنت":"You"}</Text><Text style={[styles.commentBody,isArabic&&styles.rtl]}>{comment}</Text></View>)}
