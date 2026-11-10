@@ -60,7 +60,6 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
   const [settingsPrivate,setSettingsPrivate]=useState(false);
   const [settingsHideFollowers,setSettingsHideFollowers]=useState(false);
   const [notificationRows,setNotificationRows]=useState<any[]>([]);
-  const [darkDisplay,setDarkDisplay]=useState(false);
 
 
   const loadProfile=useCallback(async()=>{
@@ -79,6 +78,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     setPostCount(posts.count||0);setFollowersCount(followers.count||0);setFollowingCount(following.count||0);
     const {data:ownPosts}=await supabase.from("posts").select("id,title,body,image_url,created_at").eq("author_id",user.id).order("created_at",{ascending:false}).limit(50);
     setMyPosts(ownPosts||[]);
+    const postIds=(ownPosts||[]).map((p:any)=>p.id);
+    if(postIds.length){const [likes,saves]=await Promise.all([supabase.from("post_likes").select("post_id").eq("user_id",user.id).in("post_id",postIds),supabase.from("post_saves").select("post_id").eq("user_id",user.id).in("post_id",postIds)]);setLikedMyPosts((likes.data||[]).map((x:any)=>x.post_id));setSavedMyPosts((saves.data||[]).map((x:any)=>x.post_id));}else{setLikedMyPosts([]);setSavedMyPosts([]);}
   },[]);
 
   const loadGroups=useCallback(async()=>{
