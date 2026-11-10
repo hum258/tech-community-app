@@ -1,0 +1,68 @@
+name: Configure Expo Updates
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  configure-expo-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install project dependencies
+        run: npm install
+
+      - name: Install SDK-compatible Expo Updates
+        run: npx expo install expo-updates
+
+      - name: Link project to Expo
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli@latest init --force --non-interactive
+
+      - name: Configure OTA updates and verify project ID
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const file = 'app.json';
+          const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const expo = config.expo || {};
+          const projectId = expo.extra?.eas?.projectId;
+          if (!projectId) {
+            throw new Error('Expo project ID was not added by eas init. Check the EXPO_TOKEN secret and Expo account permissions.');
+          }
+          expo.runtimeVersion = { policy: 'appVersion' };
+          expo.updates = {
+            ...(expo.updates || {}),
+            url: `https://u.expo.dev/${projectId}`,
+            requestHeaders: { ...(expo.updates?.requestHeaders || {}), 'expo-channel-name': 'production' },
+            checkAutomatically: 'ON_LOAD'
+          };
+          config.expo = expo;
+          fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+          console.log('Expo project linked:', projectId);
+          NODE
+
+      - name: Refresh lockfile
+        run: npm install
+
+      - name: Commit Expo Updates configuration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.json package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No configuration changes to commit."
+          else
+            git commit -m "Configure Expo over-the-air updates"
+            git push
+          fi
