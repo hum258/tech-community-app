@@ -36,7 +36,7 @@ function CommunityApp() {
         const saved = JSON.parse(raw);
         setIsDark(!!saved.isDark);
         setSimpleMode(!!saved.simpleMode);
-        if (typeof saved.activeTab === "string" && ["home","explore","features","groups","messages","profile","settings"].includes(saved.activeTab)) setActiveTab(saved.activeTab);
+        if (typeof saved.activeTab === "string" && ["home","explore","features","groups","messages","profile","settings","notifications"].includes(saved.activeTab)) setActiveTab(saved.activeTab);
       }
     }).catch(() => {}).finally(() => { if (alive) setPreferencesLoaded(true); });
     return () => { alive = false; };
@@ -47,14 +47,6 @@ function CommunityApp() {
     AsyncStorage.setItem("tech-community-preferences", JSON.stringify({ isDark, simpleMode, activeTab })).catch(() => {});
   }, [isDark, simpleMode, activeTab, preferencesLoaded]);
 
-  useEffect(() => {
-    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (activeTab !== "home") { setActiveTab("home"); return true; }
-      if (composerOpen) { setComposerOpen(false); return true; }
-      return false;
-    });
-    return () => sub.remove();
-  }, [activeTab, composerOpen]);
   const [activeCategory, setActiveCategory] = useState("الكل");
   const [query, setQuery] = useState("");
   const [liked, setLiked] = useState<Array<string | number>>([]);
@@ -78,6 +70,16 @@ function CommunityApp() {
   const [openPostMenuId, setOpenPostMenuId] = useState<string | number | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (activeTab !== "home") { setActiveTab("home"); return true; }
+      if (composerOpen) { setComposerOpen(false); return true; }
+      return false;
+    });
+    return () => sub.remove();
+  }, [activeTab, composerOpen]);
+
 
   useEffect(() => {
     const client = supabase;
@@ -305,15 +307,16 @@ function CommunityApp() {
             <Pressable style={styles.langButton} onPress={()=>setLanguage(language==="ar"?"en":"ar")}>
               <Text style={styles.langText}>{isArabic ? "EN" : "ع"} </Text>
             </Pressable>
-            <Pressable style={styles.iconButton} onPress={()=>setActiveTab("settings")}>
+            <Pressable style={styles.iconButton} onPress={()=>setActiveTab("notifications")}>
               <MaterialCommunityIcons name="bell-outline" size={21} color="#536471" />
               <View style={styles.notificationDot} />
             </Pressable>
+            <Pressable style={[styles.langButton,isDark&&{borderColor:"#34495A"}]} onPress={()=>setActiveTab("settings")} accessibilityRole="button" accessibilityLabel={isArabic?"الإعدادات":"Settings"}><MaterialCommunityIcons name="cog-outline" size={19} color={isDark?"#DCE6EF":"#536471"}/></Pressable>
           </View>
         </View>
 
         <ScrollView style={[styles.scroll,isDark&&{backgroundColor:"#101820"}]} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {activeTab !== "home" ? <SecondaryScreen tab={activeTab} isArabic={isArabic} isDark={isDark} simpleMode={simpleMode} initialSettingsSection={activeTab==="settings"?"notifications":undefined} onToggleTheme={()=>setIsDark(v=>!v)} onToggleSimpleMode={()=>setSimpleMode(v=>!v)} onBackHome={() => setActiveTab("home")} onOpenMessages={() => setActiveTab("messages")} onOpenComposer={()=>{setActiveTab("home");setComposerType("post");setComposerOpen(true);}} /> : <>
+          {activeTab !== "home" ? <SecondaryScreen tab={activeTab==="notifications"?"settings":activeTab} isArabic={isArabic} isDark={isDark} simpleMode={simpleMode} initialSettingsSection={activeTab==="notifications"?"notifications":undefined} onToggleTheme={()=>setIsDark(v=>!v)} onToggleSimpleMode={()=>setSimpleMode(v=>!v)} onBackHome={() => setActiveTab("home")} onOpenMessages={() => setActiveTab("messages")} onOpenComposer={()=>{setActiveTab("home");setComposerType("post");setComposerOpen(true);}} /> : <>
           <View style={[styles.hero,isDark&&{backgroundColor:"#172632",borderColor:"#263746"}]}>
             <View style={styles.heroGlow} />
             <View style={styles.heroTop}>
