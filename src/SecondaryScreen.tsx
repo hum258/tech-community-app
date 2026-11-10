@@ -592,7 +592,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
           <Text style={s.detail}>{ar?"الخصوصية ونوع الحساب من زر تعديل الملف الشخصي.":"Privacy and account type are managed in Edit profile."}</Text>
         </View>
         <Button label={ar?"نشر منشور من حسابي":"Publish from profile"} onPress={onOpenComposer}/>
-        <T        {myPosts.map(p=><View key={p.id} style={s.card}>
+        <Text style={s.cardTitle}>{ar?"منشوراتي":"My posts"}</Text>
+        {myPosts.map(p=><View key={p.id} style={s.card}>
           <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}>
             <View style={{flex:1}}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.status}>{new Date(p.created_at).toLocaleString(ar?"ar":"en")}</Text></View>
             <Pressable onPress={()=>setMyPostMenuId(myPostMenuId===p.id?null:p.id)} hitSlop={12} accessibilityRole="button" accessibilityLabel={ar?"خيارات المنشور":"Post options"} style={{width:42,height:42,alignItems:"center",justifyContent:"center",borderRadius:12,backgroundColor:C.pale,borderWidth:1,borderColor:C.line}}><MaterialCommunityIcons name="dots-vertical" size={23} color={C.ink}/></Pressable>
