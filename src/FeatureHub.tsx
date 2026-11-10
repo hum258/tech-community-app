@@ -87,6 +87,14 @@ export default function FeatureHub({isArabic,userId}:Props){
     if(!opts?.length)return;
     Alert.alert(poll.question,undefined,opts.map((o:any)=>({text:o.label,onPress:async()=>{const {error}=await supabase!.from("poll_votes").insert({poll_id:poll.id,option_id:o.id,user_id:userId});say(error?error.message:(ar?"تم تسجيل صوتك.":"Vote recorded."));}})));
   };
+  const addListMember=async()=>{
+    if(!supabase||!listId||!extra.trim())return;
+    const {data:person,error:findError}=await supabase.from("profiles").select("id").eq("username",extra.trim().replace(/^@/,"").toLowerCase()).maybeSingle();
+    if(findError||!person){say(ar?"لم نعثر على اسم المستخدم.":"Username not found.");return;}
+    const {error}=await supabase.from("follow_list_members").insert({list_id:listId,profile_id:person.id});
+    say(error?error.message:(ar?"تمت إضافة العضو إلى القائمة.":"Member added to list."));
+    setExtra("");
+  };
   const joinEvent=async(event:any)=>{const {error}=await supabase!.from("event_registrations").insert({event_id:event.id,user_id:userId});say(error?error.message:(ar?"تم تسجيلك في الفعالية.":"Registered for event."));};
   const joinRoom=async(room:any)=>{const {error}=await supabase!.from("audio_room_participants").upsert({room_id:room.id,user_id:userId,role:"listener"});say(error?error.message:(ar?"انضممت كمستمع. البث الصوتي المباشر يحتاج خدمة صوت خارجية ولم يُفعّل بعد.":"Joined as listener. Live audio transport still needs an external audio service."));};
   const addAnswer=async()=>{if(!supabase||!questionId||!answerDraft.trim())return;const {error}=await supabase.from("answers").insert({question_id:questionId,author_id:userId,body:answerDraft.trim()});say(error?error.message:(ar?"تمت إضافة الإجابة.":"Answer added."));setAnswerDraft("");};
@@ -127,7 +135,7 @@ export default function FeatureHub({isArabic,userId}:Props){
         :active==="drafts"?<><Text style={s.itemTitle}>{x.title||"Draft"}</Text><Text style={s.sub}>{x.body}</Text></>
         :<><Text style={s.itemTitle}>{x.name}</Text><Text style={s.sub}>{x.description}</Text><Button label={ar?"إدارة القائمة":"Manage list"} onPress={()=>setListId(x.id)}/></>}
         {active==="qa"&&questionId===x.id&&<><Field label={ar?"اكتب إجابتك":"Your answer"} value={answerDraft} onChange={setAnswerDraft}/><Button label={ar?"إرسال الإجابة":"Submit answer"} onPress={addAnswer}/></>}
-        {active==="lists"&&listId===x.id&&<Text style={s.sub}>{ar?"تم فتح القائمة. أضف الأعضاء من شاشة الملف الشخصي قريباً.":"List opened. Member picker will be connected in the next pass."}</Text>}
+        {active==="lists"&&listId===x.id&&<><Field label={ar?"اسم المستخدم لإضافته إلى القائمة":"Username to add"} value={extra} onChange={setExtra} placeholder="@username"/><Button label={ar?"إضافة إلى القائمة":"Add to list"} onPress={addListMember}/></>}
       </Card>)}
       {active==="qa"&&filtered.length===0&&<Text style={s.sub}>{ar?"لا توجد أسئلة بعد.":"No questions yet."}</Text>}
     </>}
