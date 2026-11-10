@@ -95,3 +95,25 @@ language sql security definer set search_path='' as $$
 $$;
 revoke all on function public.get_trending_posts() from public,anon;
 grant execute on function public.get_trending_posts() to authenticated;
+
+create table if not exists public.post_shares (
+ post_id uuid not null references public.posts(id) on delete cascade,
+ user_id uuid not null references public.profiles(id) on delete cascade,
+ created_at timestamptz not null default now(),
+ primary key(post_id,user_id,created_at)
+);
+alter table public.post_shares enable row level security;
+grant select,insert on public.post_shares to authenticated;
+drop policy if exists "users record own shares" on public.post_shares;
+create policy "users record own shares" on public.post_shares for insert to authenticated with check(user_id=(select auth.uid()));
+drop policy if exists "authors read share counts" on public.post_shares;
+create policy "authors read share counts" on public.post_shares for select to authenticated using(exists(select 1 from public.posts p where p.id=post_id and p.author_id=(select auth.uid())));
+drop function if exists public.get_post_metrics(uuid[]);
+create function public.get_post_metrics(post_ids uuid[])
+returns table(post_id uuid,views bigint,likes bigint,comments bigint,reposts bigint,saves bigint,shares bigint)
+language sql security definer set search_path='' as $$
+ select p.id,(select count(*) from public.post_views v where v.post_id=p.id),(select count(*) from public.post_likes l where l.post_id=p.id),(select count(*) from public.comments c where c.post_id=p.id),(select count(*) from public.post_reposts r where r.post_id=p.id),(select count(*) from public.post_saves s where s.post_id=p.id),(select count(*) from public.post_shares h where h.post_id=p.id)
+ from public.posts p where p.id=any(post_ids)
+$$;
+revoke all on function public.get_post_metrics(uuid[]) from public,anon;
+grant execute on function public.get_post_metrics(uuid[]) to authenticated;
