@@ -288,7 +288,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
           {!!person.specialty&&<Text style={s.detail}>{person.specialty}</Text>}
         </View>
         <Pressable disabled={busy} onPress={()=>toggleFollow(person.id)} style={[s.smallButton,followingIds.includes(person.id)&&s.secondaryButton]}><Text style={[s.smallButtonText,followingIds.includes(person.id)&&s.secondaryButtonText]}>{followingIds.includes(person.id)?(ar?"تتابعه":"Following"):(ar?"متابعة":"Follow")}</Text></Pressable>
-      </View>)}
+      </Pressable>)}
       {!people.length&&<Text style={s.empty}>{ar?"لا يوجد أشخاص مطابقون حالياً.":"No people found."}</Text>}
       <Text style={[s.section,ar&&s.rtl]}>{ar?"المجتمعات":"Communities"}</Text>
       {communities.filter(x=>(x.name+" "+x.description+" "+x.specialty).toLowerCase().includes(query.toLowerCase())).map(x=><View key={x.id} style={s.card}><Text style={s.cardTitle}>{x.name}</Text><Text style={s.detail}>{x.description}</Text><Text style={s.tag}>{x.specialty}</Text></View>)}
