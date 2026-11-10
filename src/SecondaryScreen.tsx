@@ -60,6 +60,10 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
   const [settingsPrivate,setSettingsPrivate]=useState(false);
   const [settingsHideFollowers,setSettingsHideFollowers]=useState(false);
   const [notificationRows,setNotificationRows]=useState<any[]>([]);
+  const [myPostMetrics,setMyPostMetrics]=useState<Record<string,any>>({});
+  const [topicRows,setTopicRows]=useState<any[]>([]);
+  const [followedTopics,setFollowedTopics]=useState<string[]>([]);
+  const [fontScale,setFontScale]=useState(1);
 
 
   const loadProfile=useCallback(async()=>{
@@ -76,8 +80,10 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
       supabase.from("profile_follows").select("following_id",{count:"exact",head:true}).eq("follower_id",user.id)
     ]);
     setPostCount(posts.count||0);setFollowersCount(followers.count||0);setFollowingCount(following.count||0);
-    const {data:ownPosts}=await supabase.from("posts").select("id,title,body,image_url,created_at").eq("author_id",user.id).order("created_at",{ascending:false}).limit(50);
+    const {data:ownPosts}=await supabase.from("posts").select("id,title,body,image_url,created_at,pinned_at").eq("author_id",user.id).order("pinned_at",{ascending:false,nullsFirst:false}).order("created_at",{ascending:false}).limit(50);
     setMyPosts(ownPosts||[]);
+    const ids=(ownPosts||[]).map((p:any)=>p.id);
+    if(ids.length){const {data:metrics}=await supabase.rpc("get_post_metrics",{post_ids:ids});const map:any={};(metrics||[]).forEach((m:any)=>map[m.post_id]=m);setMyPostMetrics(map);}else setMyPostMetrics({});
     const postIds=(ownPosts||[]).map((p:any)=>p.id);
     if(postIds.length){const [likes,saves]=await Promise.all([supabase.from("post_likes").select("post_id").eq("user_id",user.id).in("post_id",postIds),supabase.from("post_saves").select("post_id").eq("user_id",user.id).in("post_id",postIds)]);setLikedMyPosts((likes.data||[]).map((x:any)=>x.post_id));setSavedMyPosts((saves.data||[]).map((x:any)=>x.post_id));}else{setLikedMyPosts([]);setSavedMyPosts([]);}
   },[]);
@@ -133,7 +139,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     setConversations(mapped);
   },[]);
 
-  useEffect(()=>{if(tab==="profile"||tab==="settings"||tab==="features")loadProfile();if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
+  useEffect(()=>{if(tab==="profile"||tab==="settings"||tab==="features")loadProfile();if(tab==="explore"){loadTopics();}if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
 
   const showNotice=(v:string)=>setNotice(v);
   const saveProfile=async()=>{
@@ -294,6 +300,23 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     ]);
   };
 
+  const togglePinMyPost=async(p:any)=>{
+    const next=p.pinned_at?null:new Date().toISOString();
+    const {error}=await supabase!.from("posts").update({pinned_at:next}).eq("id",p.id).eq("author_id",userId);
+    if(error){showNotice(error.message);return;}
+    setMyPosts(old=>old.map(x=>x.id===p.id?{...x,pinned_at:next}:x).sort((a,b)=>Number(!!b.pinned_at)-Number(!!a.pinned_at)));
+  };
+  const loadTopics=async()=>{
+    if(!supabase||!userId)return;
+    const [{data:topics},{data:mine}]=await Promise.all([supabase.from("topics").select("id,name,category").order("name"),supabase.from("profile_topic_follows").select("topic_id").eq("user_id",userId)]);
+    setTopicRows(topics||[]);setFollowedTopics((mine||[]).map((x:any)=>x.topic_id));
+  };
+  const toggleTopic=async(id:string)=>{
+    const exists=followedTopics.includes(id);
+    const {error}=exists?await supabase!.from("profile_topic_follows").delete().eq("topic_id",id).eq("user_id",userId):await supabase!.from("profile_topic_follows").insert({topic_id:id,user_id:userId});
+    if(error){showNotice(error.message);return;}setFollowedTopics(old=>exists?old.filter(x=>x!==id):[...old,id]);
+  };
+
   const startConversationWith=async(person:any)=>{
     if(!supabase||!person?.id||!userId)return;
     if(person.id===userId){showNotice(ar?"لا يمكنك مراسلة نفسك.":"You cannot message yourself.");return;}
@@ -315,8 +338,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
 
   const loadConversationMessages=async(id:string)=>{
     if(!supabase)return;
-    const {data,error}=await supabase.from("messages").select("id,sender_id,body,image_url,created_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(100);
-    if(error){showNotice(error.message);return;}setMessages(data||[]);
+    const {data,error}=await supabase.from("messages").select("id,sender_id,body,image_url,created_at,read_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(100);
+    if(error){showNotice(error.message);return;}setMessages(data||[]);if(userId)await supabase.from("messages").update({read_at:new Date().toISOString()}).eq("conversation_id",id).neq("sender_id",userId).is("read_at",null);
   };
 
   const sendMessage=async()=>{
@@ -380,7 +403,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
         {settingsSection==="account"&&<><Text style={s.detail}>{ar?"البريد الإلكتروني":"Email"}: {settingsEmail}</Text><Text style={s.detail}>{ar?"اسم المستخدم":"Username"}: @{profile?.username||""}</Text></>}
         {settingsSection==="security"&&<><Text style={s.detail}>{ar?"أرسل رابطاً آمناً إلى بريدك لتغيير كلمة المرور.":"Send a secure password-reset link to your email."}</Text><Button label={ar?"إرسال رابط تغيير كلمة المرور":"Send password reset link"} onPress={async()=>{if(!supabase||!settingsEmail){showNotice(ar?"تعذر تحديد البريد الإلكتروني.":"Email unavailable.");return;}setBusy(true);const {error}=await supabase.auth.resetPasswordForEmail(settingsEmail,{redirectTo:"techcommunity://reset-password"});setBusy(false);showNotice(error?(ar?"تعذر إرسال الرابط: ":"Could not send link: ")+error.message:(ar?"إذا كان البريد مسجلاً فسيصلك رابط الاستعادة.":"If registered, a reset link will arrive by email."));}}/></>}
         {settingsSection==="privacy"&&<><Pressable style={s.settingRow} onPress={async()=>{const next=!settingsPrivate;setSettingsPrivate(next);const {error}=await supabase!.from("profiles").update({is_private:next}).eq("id",userId);if(error){setSettingsPrivate(!next);showNotice(error.message);}else{setPrivateAccount(next);showNotice(ar?"تم تحديث خصوصية الحساب.":"Privacy updated.");}}}><Text style={s.detail}>{ar?"الحساب الخاص":"Private account"}</Text><SettingSwitch value={settingsPrivate}/></Pressable><Pressable style={s.settingRow} onPress={async()=>{const next=!settingsHideFollowers;setSettingsHideFollowers(next);const {error}=await supabase!.from("profiles").update({hide_followers:next}).eq("id",userId);if(error){setSettingsHideFollowers(!next);showNotice(error.message);}else{setHideFollowers(next);showNotice(ar?"تم تحديث إعداد المتابعين.":"Followers setting updated.");}}}><Text style={s.detail}>{ar?"إخفاء قائمة المتابعين":"Hide followers list"}</Text><SettingSwitch value={settingsHideFollowers}/></Pressable></>}
-        {settingsSection==="notifications"&&<>{notificationRows.map(n=><Pressable key={n.id} onPress={()=>markNotificationRead(n.id)} style={[s.card,{backgroundColor:n.is_read?C.white:"#EAF5FC"}]}><Text style={s.detail}>{n.body}</Text><Text style={s.status}>{new Date(n.created_at).toLocaleString(ar?"ar":"en")}</Text></Pressable>)}{!notificationRows.length&&<Text style={s.detail}>{ar?"لا توجد إشعارات بعد. ستظهر هنا تفاعلات الإعجاب والتعليق والمتابعة.":"No notifications yet. Likes, comments and follows will appear here."}</Text>}</>}
+        {settingsSection==="display"&&<><Text style={s.detail}>{ar?"حجم النص":"Text size"}</Text><View style={{flexDirection:"row",gap:8,marginVertical:10}}>{[0.9,1,1.1,1.2].map(v=><Pressable key={v} onPress={()=>setFontScale(v)} style={{flex:1,padding:10,borderRadius:10,backgroundColor:fontScale===v?C.blue:C.pale,alignItems:"center"}}><Text style={{color:fontScale===v?"#fff":C.ink,fontWeight:"800"}}>{Math.round(v*100)}%</Text></Pressable>)}</View><Text style={s.detail}>{ar?"معاينة النص بالحجم المحدد":"Preview at selected size"}</Text><Text style={{fontSize:16*fontScale,color:C.ink,fontWeight:"700"}}>{ar?"هذا مثال على حجم الخط":"Sample text size preview"}</Text></>}{settingsSection==="notifications"&&<>{notificationRows.map(n=><Pressable key={n.id} onPress={()=>markNotificationRead(n.id)} style={[s.card,{backgroundColor:n.is_read?C.white:"#EAF5FC"}]}><Text style={s.detail}>{n.body}</Text><Text style={s.status}>{new Date(n.created_at).toLocaleString(ar?"ar":"en")}</Text></Pressable>)}{!notificationRows.length&&<Text style={s.detail}>{ar?"لا توجد إشعارات بعد. ستظهر هنا تفاعلات الإعجاب والتعليق والمتابعة.":"No notifications yet. Likes, comments and follows will appear here."}</Text>}</>}
         {settingsSection==="display"&&<Text style={s.detail}>{ar?"يمكنك تغيير اللغة من زر اللغة أعلى التطبيق.":"Change the language using the language control in the app header."}</Text>}
         {settingsSection==="personalization"&&<Text style={s.detail}>{ar?"خيارات التخصيص المتقدمة ستظهر بعد ربط مصادر البيانات اللازمة.":"Advanced personalization options will appear once their data sources are connected."}</Text>}
       </View>}
@@ -414,7 +437,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
   <Pressable onPress={()=>startConversationWith(viewedProfile)} style={[s.button,{flex:1,backgroundColor:C.ink}]}><Text style={s.buttonText}>{ar?"مراسلة":"Message"}</Text></Pressable>
       </View>
       {viewedProfile.is_private&&<Text style={s.detail}>{ar?"هذا الحساب خاص.":"This account is private."}</Text>}
-      {viewedPosts.map(p=><View key={p.id} style={s.card}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}</View>)}
+      {viewedPosts.map(p=><View key={p.id} style={s.card}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}<View style={{flexDirection:"row",justifyContent:"space-around",paddingVertical:9,backgroundColor:C.pale,borderRadius:10,marginTop:8}}>{[[myPostMetrics[p.id]?.views||0,ar?"مشاهدة":"Views","eye"],[myPostMetrics[p.id]?.likes||0,ar?"إعجاب":"Likes","heart"],[myPostMetrics[p.id]?.comments||0,ar?"تعليق":"Comments","comment-outline"],[myPostMetrics[p.id]?.reposts||0,ar?"إعادة نشر":"Reposts","repeat"],[myPostMetrics[p.id]?.saves||0,ar?"حفظ":"Saves","bookmark-outline"]].map(([n,label,ic]:any)=><View key={label} style={{alignItems:"center",gap:2}}><MaterialCommunityIcons name={ic} size={16} color={C.muted}/><Text style={{fontSize:12,fontWeight:"900",color:C.ink}}>{n}</Text><Text style={{fontSize:9,color:C.muted}}>{label}</Text></View>)}</View></View>)}
       {!viewedPosts.length&&<Text style={s.empty}>{ar?"لا توجد منشورات بعد.":"No posts yet."}</Text>}
     </View>}
 
@@ -431,7 +454,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
         <Pressable disabled={busy} onPress={()=>toggleFollow(person.id)} style={[s.smallButton,followingIds.includes(person.id)&&s.secondaryButton]}><Text style={[s.smallButtonText,followingIds.includes(person.id)&&s.secondaryButtonText]}>{followingIds.includes(person.id)?(ar?"تتابعه":"Following"):(ar?"متابعة":"Follow")}</Text></Pressable>
       </Pressable>)}
       {!people.length&&<Text style={s.empty}>{ar?"لا يوجد أشخاص مطابقون حالياً.":"No people found."}</Text>}
-      <Text style={[s.section,ar&&s.rtl]}>{ar?"المجتمعات":"Communities"}</Text>
+      <Text style={[s.section,ar&&s.rtl]}>{ar?"مواضيع تتابعها":"Follow topics"}</Text><View style={s.card}><Text style={s.detail}>{ar?"اختر المجالات التي تريد ظهور منشوراتها في الاستكشاف.":"Choose topics to personalize discovery."}</Text><View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:10}}>{topicRows.map(t=><Pressable key={t.id} onPress={()=>toggleTopic(t.id)} style={{paddingVertical:9,paddingHorizontal:12,borderRadius:18,backgroundColor:followedTopics.includes(t.id)?C.blue:C.pale}}><Text style={{color:followedTopics.includes(t.id)?"#fff":C.ink,fontWeight:"700"}}>{followedTopics.includes(t.id)?"✓ ":""}{t.name}</Text></Pressable>)}</View></View><Text style={[s.section,ar&&s.rtl]}>{ar?"المجتمعات":"Communities"}</Text>
       {communities.filter(x=>(x.name+" "+x.description+" "+x.specialty).toLowerCase().includes(query.toLowerCase())).map(x=><View key={x.id} style={s.card}><Text style={s.cardTitle}>{x.name}</Text><Text style={s.detail}>{x.description}</Text><Text style={s.tag}>{x.specialty}</Text></View>)}
       <Button label={ar?"عرض المجتمعات":"View communities"} onPress={onBackHome}/>
     </>}
@@ -468,12 +491,12 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
         <Text style={[s.section,ar&&s.rtl]}>{ar?"منشوراتي":"My posts"}</Text>
         {myPosts.map(p=><View key={p.id} style={s.card}>
           <Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}
-          <View style={{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:12,borderTopWidth:1,borderTopColor:C.line,paddingTop:10}}>
+          <View style={{flexDirection:"row",flexWrap:"nowrap",justifyContent:"space-between",gap:2,marginTop:12,borderTopWidth:1,borderTopColor:C.line,paddingTop:8}}>
             <Pressable onPress={()=>toggleMyPostLike(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:likedMyPosts.includes(p.id)?"#FCE8EE":C.pale,borderRadius:10}}><MaterialCommunityIcons name={likedMyPosts.includes(p.id)?"heart":"heart-outline"} size={19} color={likedMyPosts.includes(p.id)?"#D83F69":C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"إعجاب":"Like"}</Text></Pressable>
             <Pressable onPress={()=>setCommentingMyPost(commentingMyPost===p.id?null:p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="comment-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"تعليق":"Comment"}</Text></Pressable>
             <Pressable onPress={()=>Share.share({message:(p.title||"")+"\n\n"+(p.body||"")})} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="share-variant-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"مشاركة":"Share"}</Text></Pressable>
             <Pressable onPress={()=>toggleMyPostSave(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:savedMyPosts.includes(p.id)?"#E8F5FD":C.pale,borderRadius:10}}><MaterialCommunityIcons name={savedMyPosts.includes(p.id)?"bookmark":"bookmark-outline"} size={19} color={C.blue}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"حفظ":"Save"}</Text></Pressable>
-            <Pressable onPress={()=>deleteMyPost(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:"#FCEBED",borderRadius:10}}><MaterialCommunityIcons name="trash-can-outline" size={18} color={C.red}/><Text style={{color:C.red,fontWeight:"700",fontSize:12}}>{ar?"حذف":"Delete"}</Text></Pressable>
+            <Pressable onPress={()=>togglePinMyPost(p)} style={{flexDirection:"row",alignItems:"center",gap:3,padding:7,borderRadius:8,backgroundColor:p.pinned_at?"#E8F5FD":C.pale}}><MaterialCommunityIcons name="pin-outline" size={17} color={C.blue}/><Text style={{color:C.blue,fontSize:10,fontWeight:"700"}}>{p.pinned_at?(ar?"مثبّت":"Pinned"):(ar?"تثبيت":"Pin")}</Text></Pressable><Pressable onPress={()=>deleteMyPost(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:"#FCEBED",borderRadius:10}}><MaterialCommunityIcons name="trash-can-outline" size={18} color={C.red}/><Text style={{color:C.red,fontWeight:"700",fontSize:12}}>{ar?"حذف":"Delete"}</Text></Pressable>
           </View>
           {commentingMyPost===p.id&&<View style={{marginTop:10,gap:8}}><TextInput value={myPostComment} onChangeText={setMyPostComment} placeholder={ar?"اكتب تعليقك هنا...":"Write your comment..."} placeholderTextColor={C.muted} style={[s.input,{marginTop:0}]}/><Pressable onPress={()=>sendMyPostComment(p.id)} style={{backgroundColor:C.blue,borderRadius:10,padding:11,alignItems:"center"}}><Text style={{color:"#fff",fontWeight:"800"}}>{ar?"إرسال التعليق":"Post comment"}</Text></Pressable></View>}
         </View>)}
@@ -486,7 +509,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
       {!activeConversation?<><Text style={[s.detail,ar&&s.rtl]}>{ar?"ابدأ محادثة جديدة باستخدام اسم المستخدم.":"Start a conversation using a member's username."}</Text><Text style={s.label}>{ar?"اسم المستخدم":"Username"}</Text><View style={s.messageSearchRow}><TextInput value={targetUsername} onChangeText={setTargetUsername} placeholder="@username" placeholderTextColor="#9AA8B2" autoCapitalize="none" style={[s.input,{flex:1,marginTop:0}]}/><Pressable onPress={startConversation} disabled={busy||!targetUsername.trim()} style={[s.messageSearchButton,(busy||!targetUsername.trim())&&{opacity:.5}]} accessibilityRole="button" accessibilityLabel={ar?"البحث عن مستخدم":"Search for user"}><MaterialCommunityIcons name="magnify" size={21} color="#FFFFFF"/></Pressable></View><Text style={[s.section,ar&&s.rtl]}>{ar?"محادثاتك":"Your conversations"}</Text>
         {conversations.map(c=><Pressable key={c.id} onPress={()=>{setActiveConversation(c.id);setActivePeer(c.peerName);loadConversationMessages(c.id);}} style={s.card}><Text style={s.cardTitle}>{c.peerName}</Text><Text style={s.detail}>@{c.peerUsername}</Text></Pressable>)}
         {!conversations.length&&<Text style={s.empty}>{ar?"لا توجد محادثات بعد.":"No conversations yet."}</Text>}
-      </>:<><Pressable onPress={()=>setActiveConversation(null)} style={s.back}><MaterialCommunityIcons name="arrow-left" size={18} color={C.blue}/><Text style={s.backText}>{ar?"كل المحادثات":"All conversations"}</Text></Pressable><Text style={s.cardTitle}>{activePeer}</Text><ScrollView style={s.messageList}>{messages.map(m=><View key={m.id} style={[s.bubble,m.sender_id===userId&&s.myBubble]}>{m.image_url?<Image source={{uri:m.image_url}} style={{width:210,height:180,borderRadius:12,marginBottom:5}} resizeMode="cover"/>:null}<Text style={[s.bubbleText,m.sender_id===userId&&s.myBubbleText]}>{m.body==="صورة"&&m.image_url?"":m.body}</Text><Text style={[s.time,m.sender_id===userId&&s.myBubbleText]}>{new Date(m.created_at).toLocaleString()}</Text></View>)}</ScrollView><View style={s.compose}><Pressable onPress={sendMessageImage} disabled={busy} style={[s.send,{backgroundColor:C.pale,marginRight:7}]}><MaterialCommunityIcons name="image-plus" size={20} color={C.blue}/></Pressable><TextInput value={messageDraft} onChangeText={setMessageDraft} placeholder={ar?"اكتب رسالة...":"Write a message..."} placeholderTextColor="#9AA8B2" style={[s.composeInput,ar&&s.rtl]}/><Pressable onPress={sendMessage} style={s.send}><MaterialCommunityIcons name="send" size={19} color="#FFFFFF"/></Pressable></View></>}
+      </>:<><Pressable onPress={()=>setActiveConversation(null)} style={s.back}><MaterialCommunityIcons name="arrow-left" size={18} color={C.blue}/><Text style={s.backText}>{ar?"كل المحادثات":"All conversations"}</Text></Pressable><Text style={s.cardTitle}>{activePeer}</Text><ScrollView style={s.messageList}>{messages.map(m=><View key={m.id} style={[s.bubble,m.sender_id===userId&&s.myBubble]}>{m.image_url?<Image source={{uri:m.image_url}} style={{width:210,height:180,borderRadius:12,marginBottom:5}} resizeMode="cover"/>:null}<Text style={[s.bubbleText,m.sender_id===userId&&s.myBubbleText]}>{m.body==="صورة"&&m.image_url?"":m.body}</Text><Text style={[s.time,m.sender_id===userId&&s.myBubbleText]}>{new Date(m.created_at).toLocaleString()}{m.sender_id===userId?(m.read_at?(ar?" · تمت القراءة":" · Read"):(ar?" · تم الإرسال":" · Sent")):""}</Text></View>)}</ScrollView><View style={s.compose}><Pressable onPress={sendMessageImage} disabled={busy} style={[s.send,{backgroundColor:C.pale,marginRight:7}]}><MaterialCommunityIcons name="image-plus" size={20} color={C.blue}/></Pressable><TextInput value={messageDraft} onChangeText={setMessageDraft} placeholder={ar?"اكتب رسالة...":"Write a message..."} placeholderTextColor="#9AA8B2" style={[s.composeInput,ar&&s.rtl]}/><Pressable onPress={sendMessage} style={s.send}><MaterialCommunityIcons name="send" size={19} color="#FFFFFF"/></Pressable></View></>}
     </>}
 
     <Pressable onPress={onBackHome} style={s.back}><MaterialCommunityIcons name="home-outline" size={18} color={C.blue}/><Text style={s.backText}>{ar?"العودة للرئيسية":"Back to Home"}</Text></Pressable>
