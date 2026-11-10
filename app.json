@@ -15,7 +15,7 @@
     "android": {
       "package": "com.hum258.techcommunity",
       "adaptiveIcon": {
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#1D9BF0"
       },
       "navigationBarColor": "#FFFFFF",
       "navigationBarDividerColor": "#E6ECF0",
@@ -23,6 +23,10 @@
     },
     "assetBundlePatterns": [
       "**/*"
+    ],
+    "scheme": "techcommunity",
+    "plugins": [
+      "./plugins/withTechCommunitySplash"
     ]
   }
 }
