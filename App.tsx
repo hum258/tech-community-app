@@ -13,7 +13,7 @@ import { supabase } from "./src/lib/supabase";
 
 type Post = {
   id: string | number; authorId?: string; hideLikeCount?: boolean; name: string; role: string; time: string; category: string;
-  title: string; body: string; tags: string[]; likes: number; comments: number;
+  title: string; body: string; tags: string[]; likes: number; comments: number; views?:number; reposts?:number; savesCount?:number;
   icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; imageUrl?: string | null; avatarUrl?: string | null; isVerified?: boolean; accountType?: "personal" | "company";
 };
 
@@ -53,18 +53,23 @@ function CommunityApp() {
       const { data, error } = await client.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,hide_like_count,profiles(display_name,specialty,account_type,avatar_url,is_verified)").order("created_at", { ascending: false }).limit(50);
       if (error) { setFeedNotice("تعذر تحميل المنشورات من قاعدة البيانات. تأكد من تشغيل ترحيل 0003."); return; }
       if (data && alive) {
-        const rows: Post[] = data.map((p: any) => ({ id:p.id, authorId:p.author_id, hideLikeCount:!!p.hide_like_count, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], imageUrl:p.image_url, avatarUrl:p.profiles?.avatar_url, isVerified:!!p.profiles?.is_verified, accountType:p.profiles?.account_type, likes:0, comments:0, icon:"account-outline", color:"#1D9BF0" }));
+        const rows: Post[] = data.map((p: any) => ({ id:p.id, authorId:p.author_id, hideLikeCount:!!p.hide_like_count, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], imageUrl:p.image_url, avatarUrl:p.profiles?.avatar_url, isVerified:!!p.profiles?.is_verified, accountType:p.profiles?.account_type, likes:0, comments:0, views:0, reposts:0, savesCount:0, icon:"account-outline", color:"#1D9BF0" }));
         setPosts(rows);
         const ids=rows.map(p=>p.id);
         if(ids.length){
-          const [{data: likes},{data: comments},{data: mine},{data:saves}] = await Promise.all([
+          const [{data: likes},{data: comments},{data: mine},{data:saves},{data:reposts},{data:views},{data:myReposts}] = await Promise.all([
             client.from("post_likes").select("post_id").in("post_id",ids),
             client.from("comments").select("post_id").in("post_id",ids),
             client.from("post_likes").select("post_id").eq("user_id",session.user.id).in("post_id",ids),
-            client.from("post_saves").select("post_id").eq("user_id",session.user.id).in("post_id",ids)
+            client.from("post_saves").select("post_id").in("post_id",ids),
+            client.from("post_reposts").select("post_id").in("post_id",ids),
+            client.from("post_views").select("post_id").in("post_id",ids),
+            client.from("post_reposts").select("post_id").eq("user_id",session.user.id).in("post_id",ids)
           ]);
-          setPosts(old=>old.map(p=>({...p,likes:(likes||[]).filter((x:any)=>x.post_id===p.id).length,comments:(comments||[]).filter((x:any)=>x.post_id===p.id).length})));
-          setLiked((mine||[]).map((x:any)=>x.post_id)); setSaved((saves||[]).map((x:any)=>x.post_id));
+          const notMine=rows.filter(p=>p.authorId!==session.user.id).map(p=>({post_id:p.id,user_id:session.user.id}));
+          if(notMine.length) await client.from("post_views").upsert(notMine,{onConflict:"post_id,user_id,viewed_on",ignoreDuplicates:true});
+          setPosts(old=>old.map(p=>({...p,likes:(likes||[]).filter((x:any)=>x.post_id===p.id).length,comments:(comments||[]).filter((x:any)=>x.post_id===p.id).length,views:(views||[]).filter((x:any)=>x.post_id===p.id).length,reposts:(reposts||[]).filter((x:any)=>x.post_id===p.id).length,savesCount:(saves||[]).filter((x:any)=>x.post_id===p.id).length})));
+          setLiked((mine||[]).map((x:any)=>x.post_id)); setSaved((saves||[]).filter((x:any)=>x.user_id===session.user.id).map((x:any)=>x.post_id)); setReposted((myReposts||[]).map((x:any)=>x.post_id));
         }
         setFeedNotice("");
       }
@@ -306,12 +311,12 @@ function CommunityApp() {
               {post.imageUrl ? <Image source={{uri:post.imageUrl}} style={{width:"100%",height:230,borderRadius:14,marginTop:12}} resizeMode="cover"/> : null}<View style={styles.tags}>{post.tags.map(tag=><View key={tag} style={styles.tag}><Text style={styles.tagText}>#{tag}</Text></View>)}</View>
               <View style={styles.postDivider}/>
               <View style={styles.postActions}>
-                <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#657786"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{isLiked?(isArabic?"أعجبك":"Liked"):(isArabic?"إعجاب":"Like")} · {post.hideLikeCount?(isArabic?"مخفية":"Hidden"):post.likes}</Text></Pressable>
-                <Pressable style={styles.action} onPress={()=>{const opening=commentingPost!==post.id;setCommentingPost(opening?post.id:null);setCommentDraft("");if(opening&&typeof post.id==="string")loadPostComments(post.id);}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{isArabic?"تعليق":"Comment"} · {post.comments}</Text></Pressable>
-                <Pressable style={styles.action} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#657786"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
-                <Pressable style={styles.saveAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{isSaved?(isArabic?"محفوظ":"Saved"):(isArabic?"حفظ":"Save")}</Text></Pressable>
-                <Pressable style={styles.action} onPress={()=>toggleRepost(post.id)}><MaterialCommunityIcons name="repeat" size={19} color={reposted.includes(String(post.id))?"#168A62":"#657786"}/><Text style={styles.actionText}>{reposted.includes(String(post.id))?(isArabic?"أُعيد نشره":"Reposted"):(isArabic?"إعادة نشر":"Repost")}</Text></Pressable>
-                <Pressable style={styles.action} onPress={()=>reportPost(post.id)}><MaterialCommunityIcons name="flag-outline" size={18} color="#A66A00"/><Text style={styles.actionText}>{isArabic?"إبلاغ":"Report"}</Text></Pressable>
+                <Pressable style={styles.xAction} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#D83F69":"#657786"}/><Text style={[styles.xActionText,isLiked&&styles.likedText]}>{post.hideLikeCount?"":post.likes||0}</Text></Pressable>
+                <Pressable style={styles.xAction} onPress={()=>{const opening=commentingPost!==post.id;setCommentingPost(opening?post.id:null);setCommentDraft("");if(opening&&typeof post.id==="string")loadPostComments(post.id);}}><MaterialCommunityIcons name="comment-outline" size={20} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.xActionText}>{post.comments||0}</Text></Pressable>
+                <Pressable style={styles.xAction} onPress={()=>toggleRepost(post.id)}><MaterialCommunityIcons name="repeat" size={20} color={reposted.includes(String(post.id))?"#168A62":"#657786"}/><Text style={styles.xActionText}>{post.reposts||0}</Text></Pressable>
+                <Pressable style={styles.xAction} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={20} color="#657786"/></Pressable>
+                <Pressable style={styles.xAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#1D9BF0":"#657786"}/><Text style={styles.xActionText}>{post.savesCount||0}</Text></Pressable>
+                <Pressable style={styles.xAction} onPress={()=>Alert.alert(isArabic?"تحليلات المنشور":"Post analytics",[(isArabic?"المشاهدات: ":"Views: ")+(post.views||0),(isArabic?"الإعجابات: ":"Likes: ")+(post.likes||0),(isArabic?"التعليقات: ":"Comments: ")+(post.comments||0),(isArabic?"إعادات النشر: ":"Reposts: ")+(post.reposts||0),(isArabic?"مرات الحفظ: ":"Saves: ")+(post.savesCount||0)].join("\\n"))}><MaterialCommunityIcons name="chart-box-outline" size={20} color="#657786"/></Pressable>
               </View>
               {commentingPost===post.id && <View style={styles.commentPanel}>
                 {(postComments[String(post.id)]||[]).map((comment,index)=><View key={index} style={styles.commentBubble}><Text style={styles.commentAuthor}>{isArabic?"أنت":"You"}</Text><Text style={[styles.commentBody,isArabic&&styles.rtl]}>{comment}</Text></View>)}
@@ -395,7 +400,9 @@ const styles = StyleSheet.create({
   tag:{backgroundColor:"#F5F8FA",paddingHorizontal:8,paddingVertical:5,borderRadius:7},
   tagText:{color:"#6EC6EA",fontSize:10,fontWeight:"700"},
   postDivider:{height:1,backgroundColor:"#E6ECF0",marginTop:14,marginBottom:10},
-  postActions:{flexDirection:"row",alignItems:"stretch",justifyContent:"space-between",flexWrap:"wrap",columnGap:0,rowGap:8},
+  postActions:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",flexWrap:"nowrap",columnGap:0,rowGap:0},
+  xAction:{flex:1,minWidth:0,minHeight:42,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:4,paddingHorizontal:1,borderRadius:8},
+  xActionText:{fontSize:11,color:"#657786",fontWeight:"600"},
   action:{width:"49%",flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8,minHeight:48,paddingHorizontal:8,borderRadius:12,backgroundColor:"#F1F7FB",borderWidth:1,borderColor:"#D7E8F3"},
   actionText:{color:"#243746",fontSize:13,fontWeight:"800"},
   likedText:{color:"#D83F69"},
