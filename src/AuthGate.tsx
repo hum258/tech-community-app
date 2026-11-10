@@ -107,6 +107,13 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setBusy(true);
     try {
       if (mode === "signup") {
+        const { data: usernameAvailable, error: usernameCheckError } = await supabase.rpc("is_username_available", { candidate: username.trim().toLowerCase() });
+        if (usernameCheckError) throw usernameCheckError;
+        if (!usernameAvailable) {
+          setNotice("اسم المستخدم مستخدم مسبقاً. اختر اسم مستخدم آخر.");
+          setBusy(false);
+          return;
+        }
         const { data, error } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
