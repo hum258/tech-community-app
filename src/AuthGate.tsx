@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, StatusBar, ActivityIndicator, Modal } from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, StatusBar, ActivityIndicator, Modal, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { supabase } from "./lib/supabase";
@@ -50,13 +50,27 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       if (current?.user) await loadProfile(current.user);
       if (alive) setChecking(false);
     });
+    const handleAuthUrl = async (url:string) => {
+      try {
+        if (url.includes("code=")) {
+          await supabase.auth.exchangeCodeForSession(url);
+          return;
+        }
+        const parsed = new URL(url.replace("#", "?"));
+        const access_token = parsed.searchParams.get("access_token");
+        const refresh_token = parsed.searchParams.get("refresh_token");
+        if (access_token && refresh_token) await supabase.auth.setSession({access_token,refresh_token});
+      } catch (error:any) { setNotice("تعذر فتح رابط الاستعادة: "+(error?.message||"الرابط غير صالح أو منتهي.")); }
+    };
+    Linking.getInitialURL().then(url=>{if(url?.startsWith("techcommunity://")) handleAuthUrl(url);});
+    const urlSubscription=Linking.addEventListener("url",({url})=>{if(url.startsWith("techcommunity://")) handleAuthUrl(url);});
     const { data: listener } = supabase.auth.onAuthStateChange((event, current) => {
       if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
       setSession(current);
       if (current?.user) loadProfile(current.user);
       else { setNeedsInterests(false); setSelected([]); }
     });
-    return () => { alive = false; listener.subscription.unsubscribe(); };
+    return () => { alive = false; listener.subscription.unsubscribe(); urlSubscription.remove(); };
   }, []);
 
   const strongPassword = (value: string) => value.length >= 10 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /[0-9]/.test(value) && /[^A-Za-z0-9]/.test(value);
@@ -168,7 +182,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       <Text style={a.sub}>{mode === "signup" ? "أنشئ حسابك وابدأ بمشاركة اهتماماتك." : "سجّل الدخول للمتابعة إلى حسابك."}</Text>
       {mode === "signup" && <>
         <Field label="الاسم" value={name} change={setName} placeholder="اسمك الكامل"/>
-        <Field label="اسم المستخدم" value={username} change={setUsername} placeholder="username" autoCapitalize="none"/>
+        <Field label="اسم المستخدم" value={username} change={setUsername} placeholder="username" autoCapitalize="none" autoComplete="username"/>
         <Text style={a.label}>نوع الحساب</Text><View style={a.privacyRow}><Pressable style={[a.privacy,accountType==="personal"&&a.privacyOn]} onPress={()=>setAccountType("personal")}><Text style={[a.privacyText,accountType==="personal"&&a.privacyTextOn]}>شخصي</Text></Pressable><Pressable style={[a.privacy,accountType==="company"&&a.privacyOn]} onPress={()=>setAccountType("company")}><Text style={[a.privacyText,accountType==="company"&&a.privacyTextOn]}>شركة / مؤسسة</Text></Pressable></View>
         {accountType === "company" && <><Field label="اسم الشركة" value={companyName} change={setCompanyName} placeholder="اسم الشركة"/><Field label="الموقع الإلكتروني (اختياري)" value={companyWebsite} change={setCompanyWebsite} placeholder="https://example.com" autoCapitalize="none"/><Field label="مجال الشركة" value={companyIndustry} change={setCompanyIndustry} placeholder="مثلاً: التقنية"/></>}
         <Text style={a.label}>تاريخ الميلاد (اختياري)</Text>
@@ -178,7 +192,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           <Pressable style={a.dateChoice} onPress={() => setDatePickerPart("year")}><Text style={a.dateChoiceText}>{birthYear || "السنة"}</Text><MaterialCommunityIcons name="chevron-down" size={18} color="#657786"/></Pressable>
         </View>
         {!!birthDate && <Pressable onPress={() => updateBirthDate("","","")}><Text style={a.clearDate}>مسح تاريخ الميلاد</Text></Pressable>}
-        <Field label="البريد الإلكتروني" value={email} change={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none"/>
+        <Field label="البريد الإلكتروني" value={email} change={setEmail} placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email"/>
         <Text style={a.label}>خصوصية الحساب</Text>
         <View style={a.privacyRow}>
           <Pressable style={[a.privacy, !isPrivate && a.privacyOn]} onPress={() => setIsPrivate(false)}><Text style={[a.privacyText, !isPrivate && a.privacyTextOn]}>عام</Text></Pressable>
@@ -210,7 +224,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 function Brand() { return <View style={a.brand}><View style={a.mark}><MaterialCommunityIcons name="orbit-variant" size={28} color="#FFFFFF"/></View><Text style={a.brandName}>Tech Community</Text><Text style={a.brandSub}>مساحة تجمع المهتمين بالتقنية</Text></View>; }
-function Field({label,value,change,placeholder,secure,visible,toggleVisible,keyboardType,autoCapitalize,autoComplete}:any) { return <><Text style={a.label}>{label}</Text><View style={secure ? a.passwordWrap : undefined}><TextInput value={value} onChangeText={change} placeholder={placeholder} placeholderTextColor="#8B98A5" secureTextEntry={secure && !visible} keyboardType={keyboardType || "default"} autoCapitalize={autoCapitalize || "sentences"} autoComplete={autoComplete} textContentType={autoComplete==="new-password"?"newPassword":autoComplete==="current-password"?"password":undefined} importantForAutofill="yes" style={[a.input,secure && a.passwordInput]}/>{secure && <Pressable style={a.eyeButton} onPress={toggleVisible}><MaterialCommunityIcons name={visible ? "eye-off-outline" : "eye-outline"} size={21} color="#657786"/></Pressable>}</View></>; }
+function Field({label,value,change,placeholder,secure,visible,toggleVisible,keyboardType,autoCapitalize,autoComplete}:any) { return <><Text style={a.label}>{label}</Text><View style={secure ? a.passwordWrap : undefined}><TextInput value={value} onChangeText={change} placeholder={placeholder} placeholderTextColor="#8B98A5" secureTextEntry={secure && !visible} keyboardType={keyboardType || "default"} autoCapitalize={autoCapitalize || "sentences"} autoComplete={autoComplete} textContentType={autoComplete==="new-password"?"newPassword":autoComplete==="current-password"?"password":autoComplete==="email"?"emailAddress":autoComplete==="username"?"username":undefined} importantForAutofill="yes" style={[a.input,secure && a.passwordInput]}/>{secure && <Pressable style={a.eyeButton} onPress={toggleVisible}><MaterialCommunityIcons name={visible ? "eye-off-outline" : "eye-outline"} size={21} color="#657786"/></Pressable>}</View></>; }
 
 const a = StyleSheet.create({
  safe:{flex:1,backgroundColor:"#F5F8FA"},center:{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:"#F5F8FA"},
