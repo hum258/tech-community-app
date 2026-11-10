@@ -111,7 +111,7 @@ function CommunityApp() {
 
   const loadPostComments = async (postId:string) => {
     if(!supabase)return;
-    const {data,error}=await supabase.from("comments").select("id,body,created_at,profiles(display_name)").eq("post_id",postId).order("created_at",{ascending:true}).limit(100);
+    const {data,error}=await supabase.from("comments").select("id,body,created_at,parent_comment_id,profiles(display_name)").eq("post_id",postId).order("created_at",{ascending:true}).limit(100);
     if(error){setFeedNotice("تعذر تحميل التعليقات: "+error.message);return;}
     setPostComments(old=>({...old,[postId]:data||[]}));
     const ids=(data||[]).map((x:any)=>x.id);if(ids.length&&currentUserId){const {data:mine}=await supabase.from("comment_likes").select("comment_id").eq("user_id",currentUserId).in("comment_id",ids);setLikedComments(old=>[...old.filter(x=>!ids.includes(x)),...(mine||[]).map((x:any)=>x.comment_id)]);}
