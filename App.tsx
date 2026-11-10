@@ -31,6 +31,8 @@ function CommunityApp() {
   const [showComposerChoices, setShowComposerChoices] = useState(false);
   const [composerType, setComposerType] = useState<"post" | "article">("post");
   const [draft, setDraft] = useState("");
+  const [articleTitle, setArticleTitle] = useState("");
+  const [postCategory, setPostCategory] = useState("عام");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [commentingPost, setCommentingPost] = useState<string | number | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
@@ -135,6 +137,20 @@ function CommunityApp() {
     const result=exists ? await supabase.from("post_saves").delete().eq("post_id",id).eq("user_id",currentUserId) : await supabase.from("post_saves").insert({post_id:id,user_id:currentUserId});
     if(result.error){setSaved(old=>exists?[...old,id]:old.filter(x=>x!==id));setFeedNotice(result.error.message);}
   };
+  const saveCurrentDraft = async () => {
+    if(!supabase||!currentUserId){setFeedNotice("سجّل الدخول لحفظ المسودة.");return;}
+    if(!draft.trim()&&!articleTitle.trim()){setFeedNotice("اكتب محتوى قبل حفظ المسودة.");return;}
+    const {error}=await supabase.from("post_drafts").insert({user_id:currentUserId,title:composerType==="article"?articleTitle.trim():"",body:draft,category:postCategory});
+    setFeedNotice(error?"تعذر حفظ المسودة: "+error.message:"تم حفظ المسودة.");
+  };
+  const openSavedDrafts = async () => {
+    if(!supabase||!currentUserId){setFeedNotice("سجّل الدخول لعرض المسودات.");return;}
+    const {data,error}=await supabase.from("post_drafts").select("id,title,body,category").eq("user_id",currentUserId).order("updated_at",{ascending:false}).limit(10);
+    if(error){setFeedNotice(error.message);return;}
+    if(!data?.length){setFeedNotice("لا توجد مسودات محفوظة.");return;}
+    Alert.alert("مسوداتي","اختر مسودة للمتابعة",data.map((d:any)=>({text:(d.title||d.body||"مسودة").slice(0,35),onPress:()=>{setComposerType(d.title?"article":"post");setArticleTitle(d.title||"");setDraft(d.body||"");setPostCategory(d.category||"عام");setComposerOpen(true);}})).concat([{text:"إلغاء",style:"cancel"}]));
+  };
+
   const publish = async () => {
     if (!draft.trim() && !selectedImage) return;
     if (!supabase || !currentUserId) { setFeedNotice("أنشئ حساباً وسجّل الدخول قبل النشر."); return; }
@@ -149,10 +165,10 @@ function CommunityApp() {
       imageUrl = supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
     }
     const content = draft.trim();
-    const articleTitle=content.split("\\n")[0].slice(0,80) || "مقال جديد";
-    const {error}=await supabase.from("posts").insert({author_id:currentUserId,category:composerType==="article"?"مقال":"عام",title:composerType==="article"?articleTitle:(content.slice(0,80) || "صورة"),body:content,tags:[],image_url:imageUrl});
+    const finalTitle=composerType==="article"?(articleTitle.trim().slice(0,120)||"مقال جديد"):(content.slice(0,80)||"صورة");
+    const {error}=await supabase.from("posts").insert({author_id:currentUserId,category:postCategory,title:finalTitle,body:content,tags:[],image_url:imageUrl});
     if(error){setFeedNotice("تعذر نشر المنشور: "+error.message);return;}
-    setDraft(""); setSelectedImage(null); setComposerOpen(false); setComposerType("post");
+    setDraft(""); setArticleTitle(""); setPostCategory("عام"); setSelectedImage(null); setComposerOpen(false); setComposerType("post");
     const {data}=await supabase.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,hide_like_count,profiles(display_name,specialty,account_type,avatar_url,is_verified)").order("created_at",{ascending:false}).limit(50);
     if(data)setPosts(data.map((p:any)=>({id:p.id,authorId:p.author_id,hideLikeCount:!!p.hide_like_count,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],imageUrl:p.image_url,avatarUrl:p.profiles?.avatar_url,isVerified:!!p.profiles?.is_verified,accountType:p.profiles?.account_type,likes:0,comments:0,icon:"account-outline",color:"#1D9BF0"})));
     setFeedNotice("");
@@ -238,12 +254,19 @@ function CommunityApp() {
 
           {composerOpen && <View style={styles.composer}>
             <Text style={[styles.composerTitle, isArabic && styles.rtl]}>{composerType==="article"?(isArabic?"اكتب مقالك":"Write an article"):(isArabic?"أنشئ منشورك":"Create a post")}</Text>
-            <TextInput multiline value={draft} onChangeText={setDraft} placeholder={labels.compose} placeholderTextColor="#657786" style={[styles.composerInput, isArabic && styles.rtl]} />
+            {composerType==="article"&&<TextInput value={articleTitle} onChangeText={setArticleTitle} placeholder={isArabic?"عنوان المقال":"Article title"} placeholderTextColor="#657786" style={[styles.composerInput,{minHeight:46,textAlignVertical:"center"},isArabic&&styles.rtl]}/>}
+            <TextInput multiline value={draft} onChangeText={setDraft} placeholder={composerType==="article"?(isArabic?"محتوى المقال...":"Article content..."):labels.compose} placeholderTextColor="#657786" style={[styles.composerInput, isArabic && styles.rtl]} />
+            <Text style={{color:"#657786",fontSize:11,marginTop:10}}>{isArabic?"تصنيف المحتوى":"Content category"}</Text>
+            <View style={{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:7}}>
+              {["عام","البرمجة","الأمن السيبراني","الذكاء الاصطناعي","الشبكات"].map(cat=><Pressable key={cat} onPress={()=>setPostCategory(cat)} style={{paddingHorizontal:10,paddingVertical:7,borderRadius:10,borderWidth:1,borderColor:postCategory===cat?"#1D9BF0":"#CFD9DE",backgroundColor:postCategory===cat?"#E8F5FD":"#FFFFFF"}}><Text style={{color:postCategory===cat?"#1D9BF0":"#657786",fontSize:11,fontWeight:"700"}}>{cat}</Text></Pressable>)}
+            </View>
             <Pressable onPress={async ()=>{const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],quality:0.8});if(!result.canceled && result.assets[0])setSelectedImage(result.assets[0].uri);}} style={{flexDirection:"row",alignItems:"center",gap:7,marginTop:10}}>
               <MaterialCommunityIcons name="image-outline" size={21} color="#1D9BF0"/><Text style={{color:"#1D9BF0",fontWeight:"700"}}>إضافة صورة من المعرض</Text>
             </Pressable>
             {selectedImage ? <View style={{flexDirection:"row",alignItems:"center",gap:10,marginTop:10}}><Image source={{uri:selectedImage}} style={{width:100,height:90,borderRadius:12}}/><Pressable onPress={()=>setSelectedImage(null)}><MaterialCommunityIcons name="close-circle" size={24} color="#E0245E"/></Pressable></View> : null}
             <View style={styles.composerActions}>
+              <Pressable onPress={saveCurrentDraft}><Text style={styles.cancelText}>{isArabic?"حفظ كمسودة":"Save draft"}</Text></Pressable>
+              <Pressable onPress={openSavedDrafts}><Text style={styles.cancelText}>{isArabic?"مسوداتي":"My drafts"}</Text></Pressable>
               <Pressable onPress={()=>{setComposerOpen(false);setSelectedImage(null);}}><Text style={styles.cancelText}>{labels.cancel}</Text></Pressable>
               <Pressable onPress={publish} style={styles.publishButton}><Text style={styles.publishText}>{labels.publish}</Text></Pressable>
             </View>
