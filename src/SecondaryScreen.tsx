@@ -150,7 +150,7 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
     setConversations(mapped);
   },[]);
 
-  useEffect(()=>{if(tab==="settings"&&initialSettingsSection)setSettingsSection(initialSettingsSection);},[tab,initialSettingsSection]);
+  useEffect(()=>{if(tab==="settings")setSettingsSection(initialSettingsSection||null);},[tab,initialSettingsSection]);
 
   useEffect(()=>{if(tab==="profile"||tab==="settings"||tab==="features")loadProfile();if(tab==="explore"){loadTopics();loadTrending();}if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
 
