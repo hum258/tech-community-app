@@ -32,6 +32,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   const loadProfile = async (user: any) => {
     if (!supabase) return;
@@ -49,7 +50,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       if (current?.user) await loadProfile(current.user);
       if (alive) setChecking(false);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, current) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, current) => {
+      if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
       setSession(current);
       if (current?.user) loadProfile(current.user);
       else { setNeedsInterests(false); setSelected([]); }
@@ -113,16 +115,29 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       }
     } catch (e: any) {
       const msg = String(e?.message || e);
-      setNotice(msg.toLowerCase().includes("invalid login credentials") ? "البريد الإلكتروني أو كلمة المرور غير صحيحة. تأكد من كتابتهما أو استخدم رابط استعادة كلمة المرور." : msg.toLowerCase().includes("email not confirmed") ? "يجب تأكيد البريد الإلكتروني أولاً. افتح رسالة التأكيد ثم سجّل الدخول." : msg.includes("already registered") ? "هذا البريد مسجل مسبقاً. جرّب تسجيل الدخول." : msg.includes("duplicate key") ? "اسم المستخدم مستخدم مسبقاً." : "تعذر إكمال العملية: " + msg);
+      setNotice(msg.toLowerCase().includes("invalid login credentials") ? "البريد الإلكتروني أو كلمة المرور غير صحيحة. تأكد من كتابتهما أو استخدم رابط استعادة كلمة المرور." : msg.toLowerCase().includes("email not confirmed") ? "يجب تأكيد البريد الإلكتروني أولاً. افتح رسالة التأكيد ثم سجّل الدخول." : msg.includes("already registered") ? "هذا البريد مسجل مسبقاً. جرّب تسجيل الدخول." : (e?.code === "23505" || msg.toLowerCase().includes("duplicate key") || msg.includes("profiles_username_key")) ? "اسم المستخدم مستخدم مسبقاً. اختر اسم مستخدم آخر." : "تعذر إكمال العملية: " + msg);
     } finally { setBusy(false); }
   };
 
   const resetPassword = async () => {
     if(!supabase||!email.trim()){setNotice("أدخل بريدك الإلكتروني أولاً لإرسال رابط استعادة كلمة المرور.");return;}
     setBusy(true);
-    const {error}=await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
+    const {error}=await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: "techcommunity://reset-password" });
     setBusy(false);
     setNotice(error?("تعذر إرسال رابط الاستعادة: "+error.message):"إذا كان البريد مسجلاً، سيصلك رابط استعادة كلمة المرور.");
+  };
+
+  const saveNewPassword = async () => {
+    if (!supabase || password.length < 10 || password !== confirmPassword) {
+      setNotice(password.length < 10 ? "كلمة المرور يجب أن تكون 10 خانات على الأقل." : "كلمتا المرور غير متطابقتين.");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) { setNotice("تعذر تحديث كلمة المرور: " + error.message); return; }
+    setRecoveryMode(false); setPassword(""); setConfirmPassword(""); setNotice("تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.");
+    await supabase.auth.signOut();
   };
 
   const finishInterests = async (skip = false) => {
@@ -135,6 +150,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   };
 
   if (checking) return <SafeAreaView style={a.center}><ActivityIndicator color={BLUE} size="large" /></SafeAreaView>;
+  if (recoveryMode) return <SafeAreaView style={a.safe}><StatusBar barStyle="dark-content" backgroundColor="#F5F8FA"/><ScrollView contentContainerStyle={a.auth}><Brand/><View style={a.card}><Text style={a.title}>تعيين كلمة مرور جديدة</Text><Text style={a.sub}>أدخل كلمة مرور جديدة لحسابك.</Text><Field label="كلمة المرور الجديدة" value={password} change={setPassword} placeholder="كلمة مرور قوية" secure visible={showPassword} autoComplete="new-password" toggleVisible={() => setShowPassword(v=>!v)}/><Field label="تأكيد كلمة المرور" value={confirmPassword} change={setConfirmPassword} placeholder="أعد كتابة كلمة المرور" secure visible={showConfirmPassword} autoComplete="new-password" toggleVisible={() => setShowConfirmPassword(v=>!v)}/>{!!notice&&<Text style={a.error}>{notice}</Text>}<Pressable style={a.primary} onPress={saveNewPassword} disabled={busy}><Text style={a.primaryText}>{busy?"جارٍ الحفظ...":"حفظ كلمة المرور الجديدة"}</Text></Pressable></View></ScrollView></SafeAreaView>;
   if (session && needsInterests) return <SafeAreaView style={a.safe}><StatusBar barStyle="dark-content" backgroundColor="#F5F8FA"/><ScrollView contentContainerStyle={a.onboard}>
     <Brand />
     <Text style={a.title}>شو المجالات اللي بتهمك؟</Text>
@@ -194,7 +210,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 function Brand() { return <View style={a.brand}><View style={a.mark}><MaterialCommunityIcons name="orbit-variant" size={28} color="#FFFFFF"/></View><Text style={a.brandName}>Tech Community</Text><Text style={a.brandSub}>مساحة تجمع المهتمين بالتقنية</Text></View>; }
-function Field({label,value,change,placeholder,secure,visible,toggleVisible,keyboardType,autoCapitalize,autoComplete}:any) { return <><Text style={a.label}>{label}</Text><View style={secure ? a.passwordWrap : undefined}><TextInput value={value} onChangeText={change} placeholder={placeholder} placeholderTextColor="#8B98A5" secureTextEntry={secure && !visible} keyboardType={keyboardType || "default"} autoCapitalize={autoCapitalize || "sentences"} autoComplete={autoComplete} textContentType={autoComplete==="new-password"?"newPassword":autoComplete==="current-password"?"password":undefined} style={[a.input,secure && a.passwordInput]}/>{secure && <Pressable style={a.eyeButton} onPress={toggleVisible}><MaterialCommunityIcons name={visible ? "eye-off-outline" : "eye-outline"} size={21} color="#657786"/></Pressable>}</View></>; }
+function Field({label,value,change,placeholder,secure,visible,toggleVisible,keyboardType,autoCapitalize,autoComplete}:any) { return <><Text style={a.label}>{label}</Text><View style={secure ? a.passwordWrap : undefined}><TextInput value={value} onChangeText={change} placeholder={placeholder} placeholderTextColor="#8B98A5" secureTextEntry={secure && !visible} keyboardType={keyboardType || "default"} autoCapitalize={autoCapitalize || "sentences"} autoComplete={autoComplete} textContentType={autoComplete==="new-password"?"newPassword":autoComplete==="current-password"?"password":undefined} importantForAutofill="yes" style={[a.input,secure && a.passwordInput]}/>{secure && <Pressable style={a.eyeButton} onPress={toggleVisible}><MaterialCommunityIcons name={visible ? "eye-off-outline" : "eye-outline"} size={21} color="#657786"/></Pressable>}</View></>; }
 
 const a = StyleSheet.create({
  safe:{flex:1,backgroundColor:"#F5F8FA"},center:{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:"#F5F8FA"},
