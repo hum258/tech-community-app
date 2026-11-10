@@ -7,7 +7,7 @@ import { requestAuthMode } from "./AuthGate";
 import FeatureHub from "./FeatureHub";
 
 type Props = { tab: string; isArabic: boolean; isDark: boolean; simpleMode: boolean; initialSettingsSection?: string; onToggleTheme: () => void; onToggleSimpleMode: () => void; onBackHome: () => void; onOpenMessages: () => void; onOpenComposer: () => void };
-type Profile = { id:string; account_type:"personal"|"company"; account_mode:"personal"|"business"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; hide_followers:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null; avatar_url:string|null; cover_url:string|null; is_verified:boolean; points?:number };
+type Profile = { id:string; account_type:"personal"|"company"; account_mode:"personal"|"business"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; hide_followers:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null; avatar_url:string|null; cover_url:string|null; is_verified:boolean; points?:number; location?:string|null; website_url?:string|null; github_url?:string|null; skills?:string[]; languages?:string[]; certifications?:string|null; projects?:string|null; experience?:string|null; education?:string|null };
 type Community = { id:string; name:string; description:string; specialty:string };
 type Conversation = { id:string; created_at:string; peerName:string; peerUsername:string };
 
@@ -27,6 +27,15 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
   const [username,setUsername]=useState("");
   const [bio,setBio]=useState("");
   const [specialty,setSpecialty]=useState("");
+  const [location,setLocation]=useState("");
+  const [websiteUrl,setWebsiteUrl]=useState("");
+  const [githubUrl,setGithubUrl]=useState("");
+  const [skillsText,setSkillsText]=useState("");
+  const [languagesText,setLanguagesText]=useState("");
+  const [certificationsText,setCertificationsText]=useState("");
+  const [projectsText,setProjectsText]=useState("");
+  const [experienceText,setExperienceText]=useState("");
+  const [educationText,setEducationText]=useState("");
   const [privateAccount,setPrivateAccount]=useState(false);
   const [postCount,setPostCount]=useState(0);
   const [followersCount,setFollowersCount]=useState(0);
@@ -49,6 +58,8 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
   const [peopleList,setPeopleList]=useState<any[]>([]);
   const [myPosts,setMyPosts]=useState<any[]>([]);
   const [likedMyPosts,setLikedMyPosts]=useState<string[]>([]);
+  const [repostedMyPosts,setRepostedMyPosts]=useState<string[]>([]);
+  const [analyticsPostId,setAnalyticsPostId]=useState<string|null>(null);
   const [savedMyPosts,setSavedMyPosts]=useState<string[]>([]);
   const [commentingMyPost,setCommentingMyPost]=useState<string|null>(null);
   const [myPostComment,setMyPostComment]=useState("");
@@ -83,8 +94,8 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
     if(!user)return;
     setUserId(user.id);
     setSettingsEmail(user.email||"");
-    const {data}=await supabase.from("profiles").select("id,account_type,account_mode,display_name,username,bio,specialty,is_private,hide_followers,interests,company_name,company_website,company_industry,verification_status,verified_at,avatar_url,cover_url,is_verified,points").eq("id",user.id).maybeSingle();
-    if(data){const p=data as Profile;setProfile(p);setDisplayName(p.display_name||"");setUsername(p.username||"");setBio(p.bio||"");setSpecialty(p.specialty||"");setPrivateAccount(!!p.is_private);setCoverUrl(p.cover_url||"");setAccountMode(p.account_mode||p.account_type||"personal");setHideFollowers(!!p.hide_followers);setSettingsPrivate(!!p.is_private);setSettingsHideFollowers(!!p.hide_followers);}
+    const {data}=await supabase.from("profiles").select("id,account_type,account_mode,display_name,username,bio,specialty,is_private,hide_followers,interests,company_name,company_website,company_industry,verification_status,verified_at,avatar_url,cover_url,is_verified,points,location,website_url,github_url,skills,languages,certifications,projects,experience,education").eq("id",user.id).maybeSingle();
+    if(data){const p=data as Profile;setProfile(p);setDisplayName(p.display_name||"");setUsername(p.username||"");setBio(p.bio||"");setSpecialty(p.specialty||"");setLocation(p.location||"");setWebsiteUrl(p.website_url||"");setGithubUrl(p.github_url||"");setSkillsText((p.skills||[]).join(", "));setLanguagesText((p.languages||[]).join(", "));setCertificationsText(p.certifications||"");setProjectsText(p.projects||"");setExperienceText(p.experience||"");setEducationText(p.education||"");setPrivateAccount(!!p.is_private);setCoverUrl(p.cover_url||"");setAccountMode(p.account_mode||p.account_type||"personal");setHideFollowers(!!p.hide_followers);setSettingsPrivate(!!p.is_private);setSettingsHideFollowers(!!p.hide_followers);}
     const [posts,followers,following]=await Promise.all([
       supabase.from("posts").select("id",{count:"exact",head:true}).eq("author_id",user.id),
       supabase.from("profile_follows").select("follower_id",{count:"exact",head:true}).eq("following_id",user.id),
@@ -94,7 +105,7 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
     const {data:ownPosts}=await supabase.from("posts").select("id,title,body,image_url,created_at,pinned_at").eq("author_id",user.id).order("pinned_at",{ascending:false,nullsFirst:false}).order("created_at",{ascending:false}).limit(50);
     setMyPosts(ownPosts||[]);
     const ids=(ownPosts||[]).map((p:any)=>p.id);
-    if(ids.length){const {data:metrics}=await supabase.rpc("get_post_metrics",{post_ids:ids});const map:any={};(metrics||[]).forEach((m:any)=>map[m.post_id]=m);setMyPostMetrics(map);}else setMyPostMetrics({});
+    if(ids.length){const [{data:metrics},{data:myReposts}]=await Promise.all([supabase.rpc("get_post_metrics",{post_ids:ids}),supabase.from("post_reposts").select("post_id").eq("user_id",user.id).in("post_id",ids)]);const map:any={};(metrics||[]).forEach((m:any)=>map[m.post_id]=m);setMyPostMetrics(map);setRepostedMyPosts((myReposts||[]).map((x:any)=>x.post_id));}else{setMyPostMetrics({});setRepostedMyPosts([]);}
     const postIds=(ownPosts||[]).map((p:any)=>p.id);
     if(postIds.length){const [likes,saves]=await Promise.all([supabase.from("post_likes").select("post_id").eq("user_id",user.id).in("post_id",postIds),supabase.from("post_saves").select("post_id").eq("user_id",user.id).in("post_id",postIds)]);setLikedMyPosts((likes.data||[]).map((x:any)=>x.post_id));setSavedMyPosts((saves.data||[]).map((x:any)=>x.post_id));}else{setLikedMyPosts([]);setSavedMyPosts([]);}
   },[]);
@@ -159,7 +170,7 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
   const saveProfile=async()=>{
     if(!supabase||!userId||!displayName.trim()||!username.trim()){showNotice(ar?"الاسم واسم المستخدم مطلوبان.":"Name and username are required.");return;}
     if(!/^[a-zA-Z0-9_]{1,20}$/.test(username.trim())){showNotice(ar?"اسم المستخدم يجب أن يكون من 1 إلى 20 حرفاً أو رقماً أو _.":"Username must be 3–20 letters, numbers or underscores.");return;}
-    setBusy(true);const {error}=await supabase.from("profiles").update({display_name:displayName.trim(),username:username.trim().toLowerCase(),bio:bio.trim(),specialty:specialty.trim()||null,is_private:privateAccount,account_mode:accountMode,hide_followers:hideFollowers}).eq("id",userId);setBusy(false);
+    setBusy(true);const {error}=await supabase.from("profiles").update({display_name:displayName.trim(),username:username.trim().toLowerCase(),bio:bio.trim(),specialty:specialty.trim()||null,location:location.trim()||null,website_url:websiteUrl.trim()||null,github_url:githubUrl.trim()||null,skills:skillsText.split(",").map(x=>x.trim()).filter(Boolean),languages:languagesText.split(",").map(x=>x.trim()).filter(Boolean),certifications:certificationsText.trim()||null,projects:projectsText.trim()||null,experience:experienceText.trim()||null,education:educationText.trim()||null,is_private:privateAccount,account_mode:accountMode,hide_followers:hideFollowers}).eq("id",userId);setBusy(false);
     if(error){showNotice(error.message);return;}setEdit(false);showNotice(ar?"تم حفظ الملف الشخصي.":"Profile saved.");loadProfile();
   };
 
@@ -333,6 +344,25 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
     const {error}=exists?await supabase.from("post_likes").delete().eq("post_id",postId).eq("user_id",userId):await supabase.from("post_likes").insert({post_id:postId,user_id:userId});
     if(error){showNotice(error.message);return;}
     setLikedMyPosts(old=>exists?old.filter(x=>x!==postId):[...old,postId]);
+  };
+  const toggleMyPostRepost=async(postId:string)=>{
+    if(!supabase||!userId)return;
+    const exists=repostedMyPosts.includes(postId);
+    const result=exists?await supabase.from("post_reposts").delete().eq("post_id",postId).eq("user_id",userId):await supabase.from("post_reposts").insert({post_id:postId,user_id:userId});
+    if(result.error){showNotice(result.error.message);return;}
+    setRepostedMyPosts(old=>exists?old.filter(x=>x!==postId):[...old,postId]);
+    setMyPostMetrics(old=>({...old,[postId]:{...old[postId],reposts:Math.max(0,Number(old[postId]?.reposts||0)+(exists?-1:1))}}));
+  };
+  const showMyPostAnalytics=(p:any)=>{
+    const m=myPostMetrics[p.id]||{};
+    Alert.alert(ar?"تحليل المنشور":"Post analytics",[
+      (ar?"المشاهدون: ":"Viewers: ")+(m.views||0),
+      (ar?"الإعجابات: ":"Likes: ")+(m.likes||0),
+      (ar?"التعليقات: ":"Comments: ")+(m.comments||0),
+      (ar?"إعادة النشر: ":"Reposts: ")+(m.reposts||0),
+      (ar?"مرات الحفظ: ":"Saves: ")+(m.saves||0),
+      (ar?"المشاركات: ":"Shares: ")+(m.shares||0)
+    ].join("\\n"));
   };
   const toggleMyPostSave=async(postId:string)=>{
     if(!supabase||!userId)return;
@@ -592,9 +622,14 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
           <Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{accountMode==="business"?(ar?"حساب أعمال":"Business account"):accountMode==="company"?(ar?"حساب شركة":"Company account"):(ar?"حساب شخصي":"Personal account")}</Text><View style={{marginTop:10,padding:12,borderRadius:12,backgroundColor:"#FFF7E6",flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><View style={{flexDirection:"row",alignItems:"center",gap:7}}><MaterialCommunityIcons name="trophy-outline" size={20} color="#C28A24"/><Text style={{color:"#8C641A",fontWeight:"800"}}>{ar?"نقاط المساهمات":"Contribution points"}</Text></View><Text style={{color:"#8C641A",fontSize:17,fontWeight:"900"}}>{profile.points||0}</Text></View>
           <Text style={[s.bio,isDark&&{color:"#C4D0DA"}]}>{profile.bio||""}</Text>
           <View style={s.tags}>{(profile.interests||[]).map(x=><Text key={x} style={s.tag}>{x}</Text>)}</View>
+          {!!profile.location&&<Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>📍 {profile.location}</Text>}
+          {!!profile.skills?.length&&<View style={{marginTop:8}}><Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"المهارات":"Skills"}</Text><View style={s.tags}>{profile.skills.map(x=><Text key={x} style={s.tag}>{x}</Text>)}</View></View>}
+          {!!profile.languages?.length&&<Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{ar?"اللغات: ":"Languages: "}{profile.languages.join("، ")}</Text>}
+          {!!profile.website_url&&<Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>Website: {profile.website_url}</Text>}
+          {!!profile.github_url&&<Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>GitHub: {profile.github_url}</Text>}
         </View>
         <Button label={edit?(ar?"إلغاء التعديل":"Cancel edit"):(ar?"تعديل الملف الشخصي":"Edit profile")} onPress={()=>setEdit(!edit)} disabled={busy}/>
-        {edit&&<View style={[s.card,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}><Field label={ar?"الاسم":"Display name"} value={displayName} onChange={setDisplayName}/><Field label={ar?"اسم المستخدم":"Username"} value={username} onChange={setUsername}/><Field label={ar?"نبذة":"Bio"} value={bio} onChange={setBio} multiline/>{accountMode==="business"?<><Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"فئة النشاط التجاري":"Business category"}</Text><View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:8}}>{["البرمجة","الأمن السيبراني","الذكاء الاصطناعي","التسويق","التصميم","تطوير التطبيقات","تحليل البيانات","الشبكات","التعليم التقني","أخرى"].map(v=><Pressable key={v} onPress={()=>setSpecialty(v)} style={{width:"48%",minHeight:48,paddingHorizontal:9,paddingVertical:10,borderRadius:12,borderWidth:1,borderColor:specialty===v?C.blue:C.line,backgroundColor:specialty===v?"#E8F5FD":"#FFFFFF",alignItems:"center",justifyContent:"center"}}><Text style={{color:specialty===v?C.blue:C.ink,fontSize:12,fontWeight:"800",textAlign:"center"}}>{v}</Text></Pressable>)}</View></>:<Field label={ar?"التخصص":"Specialty"} value={specialty} onChange={setSpecialty}/>} <Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"نوع الحساب":"Account type"}</Text><View style={s.row}>{(["personal","business","company"] as const).map(v=><Pressable key={v} onPress={()=>setAccountMode(v)} style={[s.choice,accountMode===v&&s.choiceOn]}><Text style={[s.choiceText,isDark&&{color:"#F2F6FA"}]}>{v==="personal"?(ar?"شخصي":"Personal"):v==="business"?(ar?"أعمال":"Business"):(ar?"شركة":"Company")}</Text></Pressable>)}</View><Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"خصوصية الحساب":"Account privacy"}</Text><View style={s.row}><Pressable onPress={()=>setPrivateAccount(false)} style={[s.choice,!privateAccount&&s.choiceOn]}><Text style={[s.choiceText,isDark&&{color:"#F2F6FA"}]}>{ar?"عام":"Public"}</Text></Pressable><Pressable onPress={()=>setPrivateAccount(true)} style={[s.choice,privateAccount&&s.choiceOn]}><Text style={[s.choiceText,isDark&&{color:"#F2F6FA"}]}>{ar?"خاص":"Private"}</Text></Pressable></View><Pressable onPress={()=>setHideFollowers(!hideFollowers)} style={[s.settingRow,isDark&&{borderBottomColor:"#34495A"}]}><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{ar?"إخفاء قائمة المتابعين":"Hide followers list"}</Text><Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{hideFollowers?"●":"○"}</Text></Pressable><Button label={ar?"حفظ التعديلات":"Save changes"} onPress={saveProfile}/></View>}
+        {edit&&<View style={[s.card,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}><Field label={ar?"الاسم":"Display name"} value={displayName} onChange={setDisplayName}/><Field label={ar?"اسم المستخدم":"Username"} value={username} onChange={setUsername}/><Field label={ar?"نبذة":"Bio"} value={bio} onChange={setBio} multiline/><Field label={ar?"الموقع":"Location"} value={location} onChange={setLocation} placeholder={ar?"المدينة، الدولة":"City, Country"}/><Field label={ar?"رابط الموقع الشخصي":"Website URL"} value={websiteUrl} onChange={setWebsiteUrl}/><Field label="GitHub URL" value={githubUrl} onChange={setGithubUrl}/><Field label={ar?"المهارات (افصل بينها بفواصل)":"Skills (comma-separated)"} value={skillsText} onChange={setSkillsText} multiline/><Field label={ar?"اللغات":"Languages"} value={languagesText} onChange={setLanguagesText}/><Field label={ar?"الشهادات (كل شهادة بسطر)":"Certifications (one per line)"} value={certificationsText} onChange={setCertificationsText} multiline/><Field label={ar?"المشاريع (كل مشروع بسطر)":"Projects (one per line)"} value={projectsText} onChange={setProjectsText} multiline/><Field label={ar?"الخبرات":"Experience"} value={experienceText} onChange={setExperienceText} multiline/><Field label={ar?"التعليم":"Education"} value={educationText} onChange={setEducationText} multiline/>{accountMode==="business"?<><Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"فئة النشاط التجاري":"Business category"}</Text><View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:8}}>{["البرمجة","الأمن السيبراني","الذكاء الاصطناعي","التسويق","التصميم","تطوير التطبيقات","تحليل البيانات","الشبكات","التعليم التقني","أخرى"].map(v=><Pressable key={v} onPress={()=>setSpecialty(v)} style={{width:"48%",minHeight:48,paddingHorizontal:9,paddingVertical:10,borderRadius:12,borderWidth:1,borderColor:specialty===v?C.blue:C.line,backgroundColor:specialty===v?"#E8F5FD":"#FFFFFF",alignItems:"center",justifyContent:"center"}}><Text style={{color:specialty===v?C.blue:C.ink,fontSize:12,fontWeight:"800",textAlign:"center"}}>{v}</Text></Pressable>)}</View></>:<Field label={ar?"التخصص":"Specialty"} value={specialty} onChange={setSpecialty}/>} <Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"نوع الحساب":"Account type"}</Text><View style={s.row}>{(["personal","business","company"] as const).map(v=><Pressable key={v} onPress={()=>setAccountMode(v)} style={[s.choice,accountMode===v&&s.choiceOn]}><Text style={[s.choiceText,isDark&&{color:"#F2F6FA"}]}>{v==="personal"?(ar?"شخصي":"Personal"):v==="business"?(ar?"أعمال":"Business"):(ar?"شركة":"Company")}</Text></Pressable>)}</View><Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{ar?"خصوصية الحساب":"Account privacy"}</Text><View style={s.row}><Pressable onPress={()=>setPrivateAccount(false)} style={[s.choice,!privateAccount&&s.choiceOn]}><Text style={[s.choiceText,isDark&&{color:"#F2F6FA"}]}>{ar?"عام":"Public"}</Text></Pressable><Pressable onPress={()=>setPrivateAccount(true)} style={[s.choice,privateAccount&&s.choiceOn]}><Text style={[s.choiceText,isDark&&{color:"#F2F6FA"}]}>{ar?"خاص":"Private"}</Text></Pressable></View><Pressable onPress={()=>setHideFollowers(!hideFollowers)} style={[s.settingRow,isDark&&{borderBottomColor:"#34495A"}]}><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{ar?"إخفاء قائمة المتابعين":"Hide followers list"}</Text><Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{hideFollowers?"●":"○"}</Text></Pressable><Button label={ar?"حفظ التعديلات":"Save changes"} onPress={saveProfile}/></View>}
         <View style={[s.card,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}><View style={s.cardFoot}><Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{ar?"التوثيق":"Verification"}</Text><MaterialCommunityIcons name="check-decagram" size={24} color={profile.account_type==="company"?"#89939D":C.blue}/></View><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{ar?"فعّل الشارة الزرقاء للحساب الشخصي أو الفضية لحساب الشركة. يمكنك تشغيلها أو إيقافها مباشرة.":"Enable the blue personal or silver company badge. Toggle it whenever you like."}</Text><View style={s.verifyRow}><View style={{flexDirection:"row",alignItems:"center",gap:7}}><MaterialCommunityIcons name="check-decagram" size={22} color={profile.account_type==="company"?"#89939D":C.blue}/><Text style={[s.verifyText,isDark&&{color:"#F2F6FA"}]}>{profile.account_type==="company"?(ar?"شارة شركة فضية":"Silver company badge"):(ar?"شارة شخصية زرقاء":"Blue personal badge")}</Text></View><Pressable onPress={toggleVerified} disabled={busy} style={[s.toggle,profile.is_verified&&s.toggleOn]}><View style={[s.toggleKnob,profile.is_verified&&s.toggleKnobOn]}/></Pressable></View><Text style={s.status}>{profile.is_verified?(ar?"التوثيق مفعّل":"Verification enabled"):(ar?"التوثيق متوقف":"Verification off")}</Text></View>
         <View style={[s.card,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}><Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{ar?"الإعدادات العامة":"General settings"}</Text>
           <Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{ar?"إصدار التطبيق: 1.0.0":"App version: 1.0.0"}</Text>
@@ -618,33 +653,11 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
             <View style={{flexDirection:"row",gap:8}}><Pressable onPress={()=>saveMyPostEdit(p.id)} style={[s.button,{flex:1}]}><Text style={s.buttonText}>{ar?"حفظ التعديل":"Save edit"}</Text></Pressable><Pressable onPress={()=>setEditingMyPost(null)} style={[s.button,{flex:1,backgroundColor:C.muted}]}><Text style={s.buttonText}>{ar?"إلغاء":"Cancel"}</Text></Pressable></View>
           </View>:<Text style={[s.detail,{marginTop:8}]}>{p.body}</Text>}
           {p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}
-          <View style={{marginTop:10,padding:12,borderRadius:13,backgroundColor:isDark?"#122330":"#EEF7FD",borderWidth:1,borderColor:isDark?"#28485D":"#D5EAF8"}}>
-            <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:9}}>
-              <View style={{flexDirection:"row",alignItems:"center",gap:6}}>
-                <MaterialCommunityIcons name="chart-box-outline" size={19} color={C.blue}/>
-                <Text style={{fontSize:13,fontWeight:"900",color:isDark?"#F2F6FA":C.ink}}>{ar?"تحليل المنشور":"Post analytics"}</Text>
-              </View>
-              <Text style={{fontSize:10,color:isDark?"#AFC5D4":C.muted}}>{ar?"أرقام حقيقية":"Live metrics"}</Text>
-            </View>
-            <View style={{flexDirection:"row",flexWrap:"wrap",gap:8}}>
-              {[
-                [myPostMetrics[p.id]?.views||0,ar?"مشاهد":"Viewers","eye-outline"],
-                [myPostMetrics[p.id]?.likes||0,ar?"إعجاب":"Likes","heart-outline"],
-                [myPostMetrics[p.id]?.comments||0,ar?"تعليق":"Comments","comment-outline"],
-                [myPostMetrics[p.id]?.reposts||0,ar?"إعادة نشر":"Reposts","repeat"],
-                [myPostMetrics[p.id]?.saves||0,ar?"حفظ":"Saves","bookmark-outline"],
-                [myPostMetrics[p.id]?.shares||0,ar?"مشاركة":"Shares","share-variant-outline"]
-              ].map(([n,label,ic]:any)=><View key={label} style={{minWidth:"29%",flexGrow:1,alignItems:"center",paddingVertical:8,paddingHorizontal:4,borderRadius:9,backgroundColor:isDark?"#1A3445":"#FFFFFF"}}>
-                <MaterialCommunityIcons name={ic} size={17} color={C.blue}/>
-                <Text style={{fontSize:16,fontWeight:"900",color:isDark?"#F2F6FA":C.ink,marginTop:2}}>{n}</Text>
-                <Text style={{fontSize:10,color:isDark?"#B8C9D5":C.muted}}>{label}</Text>
-              </View>)}
-            </View>
-            <Text style={{fontSize:10,lineHeight:15,color:isDark?"#AFC5D4":C.muted,marginTop:8}}>{ar?"المشاهدون = عدد الحسابات المختلفة التي شاهدت المنشور، ويُحتسب كل حساب مرة واحدة.":"Viewers counts distinct accounts that viewed this post, once per account."}</Text>
-          </View>
+          <Pressable onPress={()=>showMyPostAnalytics(p)} style={{marginTop:10,minHeight:42,borderRadius:11,borderWidth:1,borderColor:C.blue,backgroundColor:isDark?"#122B3B":"#EAF6FE",flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8}}><MaterialCommunityIcons name="chart-box-outline" size={19} color={C.blue}/><Text style={{fontWeight:"900",color:C.blue}}>{ar?"تحليل المنشور":"Post analytics"}</Text></Pressable>
           <View style={{flexDirection:"row",flexWrap:"wrap",justifyContent:"space-between",gap:7,marginTop:12,borderTopWidth:1,borderTopColor:C.line,paddingTop:10}}>
             <Pressable onPress={()=>toggleMyPostLike(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:likedMyPosts.includes(p.id)?"#FCE8EE":C.pale,borderRadius:10}}><MaterialCommunityIcons name={likedMyPosts.includes(p.id)?"heart":"heart-outline"} size={19} color={likedMyPosts.includes(p.id)?"#D83F69":C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"إعجاب":"Like"}</Text></Pressable>
             <Pressable onPress={()=>setCommentingMyPost(commentingMyPost===p.id?null:p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="comment-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"تعليق":"Comment"}</Text></Pressable>
+            <Pressable onPress={()=>toggleMyPostRepost(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:repostedMyPosts.includes(p.id)?"#E4F5EE":C.pale,borderRadius:10}}><MaterialCommunityIcons name="repeat" size={19} color={repostedMyPosts.includes(p.id)?C.green:C.muted}/><Text style={{color:repostedMyPosts.includes(p.id)?C.green:C.ink,fontWeight:"700",fontSize:12}}>{ar?"إعادة نشر":"Repost"} {myPostMetrics[p.id]?.reposts||0}</Text></Pressable>
             <Pressable onPress={()=>Share.share({message:(p.title||"")+"\n\n"+(p.body||"")})} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="share-variant-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"مشاركة":"Share"}</Text></Pressable>
             <Pressable onPress={()=>toggleMyPostSave(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:savedMyPosts.includes(p.id)?"#E8F5FD":C.pale,borderRadius:10}}><MaterialCommunityIcons name={savedMyPosts.includes(p.id)?"bookmark":"bookmark-outline"} size={19} color={C.blue}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"حفظ":"Save"}</Text></Pressable>
           </View>
