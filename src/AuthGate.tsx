@@ -41,9 +41,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (!supabase) { setChecking(false); return; }
+    const client = supabase;
+    if (!client) { setChecking(false); return; }
     let alive = true;
-    supabase.auth.getSession().then(async ({ data }) => {
+    client.auth.getSession().then(async ({ data }) => {
       if (!alive) return;
       const current = data.session;
       setSession(current);
@@ -53,18 +54,18 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     const handleAuthUrl = async (url:string) => {
       try {
         if (url.includes("code=")) {
-          await supabase.auth.exchangeCodeForSession(url);
+          await client.auth.exchangeCodeForSession(url);
           return;
         }
         const parsed = new URL(url.replace("#", "?"));
         const access_token = parsed.searchParams.get("access_token");
         const refresh_token = parsed.searchParams.get("refresh_token");
-        if (access_token && refresh_token) await supabase.auth.setSession({access_token,refresh_token});
+        if (access_token && refresh_token) await client.auth.setSession({access_token,refresh_token});
       } catch (error:any) { setNotice("تعذر فتح رابط الاستعادة: "+(error?.message||"الرابط غير صالح أو منتهي.")); }
     };
     Linking.getInitialURL().then(url=>{if(url?.startsWith("techcommunity://")) handleAuthUrl(url);});
     const urlSubscription=Linking.addEventListener("url",({url})=>{if(url.startsWith("techcommunity://")) handleAuthUrl(url);});
-    const { data: listener } = supabase.auth.onAuthStateChange((event, current) => {
+    const { data: listener } = client.auth.onAuthStateChange((event, current) => {
       if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
       setSession(current);
       if (current?.user) loadProfile(current.user);
