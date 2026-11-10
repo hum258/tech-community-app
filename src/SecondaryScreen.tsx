@@ -249,7 +249,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
 
   const loadConversationMessages=async(id:string)=>{
     if(!supabase)return;
-    const {data,error}=await supabase.from("messages").select("id,sender_id,body,created_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(100);
+    const {data,error}=await supabase.from("messages").select("id,sender_id,body,image_url,created_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(100);
     if(error){showNotice(error.message);return;}setMessages(data||[]);
   };
 
@@ -258,6 +258,27 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     const body=messageDraft.trim();setBusy(true);
     const {error}=await supabase.from("messages").insert({conversation_id:activeConversation,sender_id:userId,body});
     setBusy(false);if(error){showNotice(error.message);return;}setMessageDraft("");await loadConversationMessages(activeConversation);
+  };
+
+  const sendMessageImage=async()=>{
+    if(!supabase||!userId||!activeConversation)return;
+    const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if(!permission.granted){showNotice(ar?"اسمح للتطبيق بالوصول إلى الصور.":"Allow photo library access.");return;}
+    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsEditing:true,quality:0.85});
+    if(picked.canceled||!picked.assets[0])return;
+    setBusy(true);
+    try{
+      const asset=picked.assets[0];const response=await fetch(asset.uri);const bytes=await response.arrayBuffer();
+      const ext=(asset.mimeType||"image/jpeg").split("/")[1]||"jpg";
+      const path=userId+"/messages/"+activeConversation+"/"+Date.now()+"."+ext;
+      const uploaded=await supabase.storage.from("post-images").upload(path,bytes,{contentType:asset.mimeType||"image/jpeg",upsert:false});
+      if(uploaded.error)throw uploaded.error;
+      const url=supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
+      const {error}=await supabase.from("messages").insert({conversation_id:activeConversation,sender_id:userId,body:"صورة",image_url:url});
+      if(error)throw error;
+      await loadConversationMessages(activeConversation);
+    }catch(e:any){showNotice((ar?"تعذر إرسال الصورة: ":"Could not send image: ")+(e?.message||""));}
+    finally{setBusy(false);}
   };
 
   const title=tab==="explore"?(ar?"استكشف المجتمع":"Explore"):tab==="groups"?(ar?"المجتمعات التقنية":"Communities"):tab==="messages"?(ar?"الرسائل":"Messages"):(ar?"ملفي الشخصي":"My profile");
@@ -358,7 +379,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
       {!activeConversation?<><Text style={[s.detail,ar&&s.rtl]}>{ar?"ابدأ محادثة جديدة باستخدام اسم المستخدم.":"Start a conversation using a member's username."}</Text><Field label={ar?"اسم المستخدم":"Username"} value={targetUsername} onChange={setTargetUsername} placeholder="@username"/><Button label={ar?"بدء محادثة":"Start chat"} onPress={startConversation}/><Text style={[s.section,ar&&s.rtl]}>{ar?"محادثاتك":"Your conversations"}</Text>
         {conversations.map(c=><Pressable key={c.id} onPress={()=>{setActiveConversation(c.id);setActivePeer(c.peerName);loadConversationMessages(c.id);}} style={s.card}><Text style={s.cardTitle}>{c.peerName}</Text><Text style={s.detail}>@{c.peerUsername}</Text></Pressable>)}
         {!conversations.length&&<Text style={s.empty}>{ar?"لا توجد محادثات بعد.":"No conversations yet."}</Text>}
-      </>:<><Pressable onPress={()=>setActiveConversation(null)} style={s.back}><MaterialCommunityIcons name="arrow-left" size={18} color={C.blue}/><Text style={s.backText}>{ar?"كل المحادثات":"All conversations"}</Text></Pressable><Text style={s.cardTitle}>{activePeer}</Text><ScrollView style={s.messageList}>{messages.map(m=><View key={m.id} style={[s.bubble,m.sender_id===userId&&s.myBubble]}><Text style={[s.bubbleText,m.sender_id===userId&&s.myBubbleText]}>{m.body}</Text><Text style={[s.time,m.sender_id===userId&&s.myBubbleText]}>{new Date(m.created_at).toLocaleString()}</Text></View>)}</ScrollView><View style={s.compose}><TextInput value={messageDraft} onChangeText={setMessageDraft} placeholder={ar?"اكتب رسالة...":"Write a message..."} placeholderTextColor="#9AA8B2" style={[s.composeInput,ar&&s.rtl]}/><Pressable onPress={sendMessage} style={s.send}><MaterialCommunityIcons name="send" size={19} color="#FFFFFF"/></Pressable></View></>}
+      </>:<><Pressable onPress={()=>setActiveConversation(null)} style={s.back}><MaterialCommunityIcons name="arrow-left" size={18} color={C.blue}/><Text style={s.backText}>{ar?"كل المحادثات":"All conversations"}</Text></Pressable><Text style={s.cardTitle}>{activePeer}</Text><ScrollView style={s.messageList}>{messages.map(m=><View key={m.id} style={[s.bubble,m.sender_id===userId&&s.myBubble]}>{m.image_url?<Image source={{uri:m.image_url}} style={{width:210,height:180,borderRadius:12,marginBottom:5}} resizeMode="cover"/>:null}<Text style={[s.bubbleText,m.sender_id===userId&&s.myBubbleText]}>{m.body==="صورة"&&m.image_url?"":m.body}</Text><Text style={[s.time,m.sender_id===userId&&s.myBubbleText]}>{new Date(m.created_at).toLocaleString()}</Text></View>)}</ScrollView><View style={s.compose}><Pressable onPress={sendMessageImage} disabled={busy} style={[s.send,{backgroundColor:C.pale,marginRight:7}]}><MaterialCommunityIcons name="image-plus" size={20} color={C.blue}/></Pressable><TextInput value={messageDraft} onChangeText={setMessageDraft} placeholder={ar?"اكتب رسالة...":"Write a message..."} placeholderTextColor="#9AA8B2" style={[s.composeInput,ar&&s.rtl]}/><Pressable onPress={sendMessage} style={s.send}><MaterialCommunityIcons name="send" size={19} color="#FFFFFF"/></Pressable></View></>}
     </>}
 
     <Pressable onPress={onBackHome} style={s.back}><MaterialCommunityIcons name="home-outline" size={18} color={C.blue}/><Text style={s.backText}>{ar?"العودة للرئيسية":"Back to Home"}</Text></Pressable>
