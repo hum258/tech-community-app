@@ -317,7 +317,7 @@ function CommunityApp() {
 
         <ScrollView style={[styles.scroll,isDark&&{backgroundColor:"#101820"}]} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {activeTab !== "home" ? <SecondaryScreen tab={activeTab==="notifications"?"settings":activeTab} isArabic={isArabic} isDark={isDark} simpleMode={simpleMode} initialSettingsSection={activeTab==="notifications"?"notifications":undefined} onToggleTheme={()=>setIsDark(v=>!v)} onToggleSimpleMode={()=>setSimpleMode(v=>!v)} onBackHome={() => setActiveTab("home")} onOpenMessages={() => setActiveTab("messages")} onOpenComposer={()=>{setActiveTab("home");setComposerType("post");setComposerOpen(true);}} /> : <>
-          <View style={[styles.hero,isDark&&{backgroundColor:"#172632",borderColor:"#263746"}]}>
+          <View style={[styles.hero,isDark&&{backgroundColor:"#172632",borderColor:"#263746"},simpleMode&&{display:"none"}]}>
             <View style={styles.heroGlow} />
             <View style={styles.heroTop}>
               <View style={styles.livePill}><View style={styles.liveDot}/><Text style={styles.liveText}>TECH NETWORK</Text></View>
@@ -369,10 +369,10 @@ function CommunityApp() {
             ))}
           </ScrollView>
 
-          {composerOpen && <View style={styles.composer}>
-            <Text style={[styles.composerTitle, isArabic && styles.rtl]}>{editingPostId?(isArabic?"تعديل المنشور":"Edit post"):composerType==="article"?(isArabic?"اكتب مقالك":"Write an article"):(isArabic?"أنشئ منشورك":"Create a post")}</Text>
-            {(composerType==="article"||editingPostId)&&<TextInput value={articleTitle} onChangeText={setArticleTitle} placeholder={isArabic?"عنوان المنشور":"Post title"} placeholderTextColor="#657786" style={[styles.composerInput,{minHeight:46,textAlignVertical:"center"},isArabic&&styles.rtl]}/>}
-            <TextInput multiline value={draft} onChangeText={setDraft} placeholder={composerType==="article"?(isArabic?"محتوى المقال...":"Article content..."):labels.compose} placeholderTextColor="#657786" style={[styles.composerInput, isArabic && styles.rtl]} />
+          {composerOpen && <View style={[styles.composer,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}>
+            <Text style={[styles.composerTitle, isArabic && styles.rtl,isDark&&{color:"#F2F6FA"}]}>{editingPostId?(isArabic?"تعديل المنشور":"Edit post"):composerType==="article"?(isArabic?"اكتب مقالك":"Write an article"):(isArabic?"أنشئ منشورك":"Create a post")}</Text>
+            {(composerType==="article"||editingPostId)&&<TextInput value={articleTitle} onChangeText={setArticleTitle} placeholder={isArabic?"عنوان المنشور":"Post title"} placeholderTextColor="#657786" style={[styles.composerInput,{minHeight:46,textAlignVertical:"center"},isArabic&&styles.rtl,isDark&&{backgroundColor:"#101820",color:"#F2F6FA"}]}/>}
+            <TextInput multiline value={draft} onChangeText={setDraft} placeholder={composerType==="article"?(isArabic?"محتوى المقال...":"Article content..."):labels.compose} placeholderTextColor="#657786" style={[styles.composerInput, isArabic && styles.rtl,isDark&&{backgroundColor:"#101820",color:"#F2F6FA"}]} />
             <Text style={{color:"#657786",fontSize:11,marginTop:10}}>{isArabic?"تصنيف المحتوى":"Content category"}</Text>
             <View style={{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:7}}>
               {["عام","البرمجة","الأمن السيبراني","الذكاء الاصطناعي","الشبكات"].map(cat=><Pressable key={cat} onPress={()=>setPostCategory(cat)} style={{paddingHorizontal:10,paddingVertical:7,borderRadius:10,borderWidth:1,borderColor:postCategory===cat?"#1D9BF0":"#CFD9DE",backgroundColor:postCategory===cat?"#E8F5FD":"#FFFFFF"}}><Text style={{color:postCategory===cat?"#1D9BF0":"#657786",fontSize:11,fontWeight:"700"}}>{cat}</Text></Pressable>)}
@@ -417,8 +417,8 @@ function CommunityApp() {
                 </>}
               </View>}
               <View style={styles.postCategory}><Text style={styles.categoryText}>{post.category}</Text></View>
-              <Text style={[styles.postTitle, isArabic && styles.rtl]}>{post.title}</Text>
-              <Text style={[styles.postBody, isArabic && styles.rtl]}>{post.body}</Text>
+              <Text style={[styles.postTitle, isArabic && styles.rtl,isDark&&{color:"#F2F6FA"}]}>{post.title}</Text>
+              <Text style={[styles.postBody, isArabic && styles.rtl,isDark&&{color:"#C4D0DA"}]}>{post.body}</Text>
               {post.imageUrl ? <Image source={{uri:post.imageUrl}} style={{width:"100%",height:230,borderRadius:14,marginTop:12}} resizeMode="cover"/> : null}<View style={styles.tags}>{post.tags.map(tag=><View key={tag} style={styles.tag}><Text style={styles.tagText}>#{tag}</Text></View>)}</View>
               <View style={styles.postDivider}/>
               <View style={styles.postActions}>
