@@ -157,7 +157,17 @@ function CommunityApp() {
     setReposted(old=>exists?old.filter(x=>x!==id):[...old,id]);
     setFeedNotice(exists?"تم إلغاء إعادة النشر.":"تمت إعادة نشر المنشور.");
   };
-  const deletePost=async(post:Post)=>{\n    if(!supabase||!currentUserId||post.authorId!==currentUserId||typeof post.id!=="string")return;\n    Alert.alert("حذف المنشور","هل أنت متأكد من حذف هذا المنشور؟",[{text:"إلغاء",style:"cancel"},{text:"حذف",style:"destructive",onPress:async()=>{const {error}=await supabase!.from("posts").delete().eq("id",post.id).eq("author_id",currentUserId);if(error){setFeedNotice("تعذر حذف المنشور: "+error.message);return;}setPosts(old=>old.filter(p=>p.id!==post.id));setFeedNotice("تم حذف المنشور.");}}]);\n  };\n  const openPostMenu=(post:Post)=>{\n    const actions:any[]=[{text:"إبلاغ عن المنشور",onPress:()=>reportPost(post.id)}];\n    if(post.authorId===currentUserId){actions.unshift({text:post.hideLikeCount?"إظهار عدد الإعجابات":"إخفاء عدد الإعجابات",onPress:()=>toggleLikeVisibility(post)},{text:"حذف المنشور",style:"destructive",onPress:()=>deletePost(post)});}\n    actions.push({text:"إلغاء",style:"cancel"});Alert.alert("خيارات المنشور",undefined,actions);\n  };\n\n  const reportPost=async(id:string|number)=>{
+  const deletePost=async(post:Post)=>{
+    if(!supabase||!currentUserId||post.authorId!==currentUserId||typeof post.id!=="string")return;
+    Alert.alert("حذف المنشور","هل أنت متأكد من حذف هذا المنشور؟",[{text:"إلغاء",style:"cancel"},{text:"حذف",style:"destructive",onPress:async()=>{const {error}=await supabase!.from("posts").delete().eq("id",post.id).eq("author_id",currentUserId);if(error){setFeedNotice("تعذر حذف المنشور: "+error.message);return;}setPosts(old=>old.filter(p=>p.id!==post.id));setFeedNotice("تم حذف المنشور.");}}]);
+  };
+  const openPostMenu=(post:Post)=>{
+    const actions:any[]=[{text:"إبلاغ عن المنشور",onPress:()=>reportPost(post.id)}];
+    if(post.authorId===currentUserId){actions.unshift({text:post.hideLikeCount?"إظهار عدد الإعجابات":"إخفاء عدد الإعجابات",onPress:()=>toggleLikeVisibility(post)},{text:"حذف المنشور",style:"destructive",onPress:()=>deletePost(post)});}
+    actions.push({text:"إلغاء",style:"cancel"});Alert.alert("خيارات المنشور",undefined,actions);
+  };
+
+  const reportPost=async(id:string|number)=>{
     if(!supabase||!currentUserId||typeof id!=="string")return;
     Alert.alert("الإبلاغ عن المنشور","اختر سبب الإبلاغ",["محتوى مزعج","معلومات مضللة","إساءة أو مضايقة"].map(reason=>({text:reason,onPress:async()=>{const {error}=await supabase!.from("content_reports").insert({reporter_id:currentUserId,post_id:id,reason});setFeedNotice(error?error.message:"تم إرسال البلاغ للمراجعة.");}})).concat([{text:"إلغاء",style:"cancel"}] as any));
   };
