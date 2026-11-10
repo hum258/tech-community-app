@@ -55,6 +55,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
   const [editingMyPost,setEditingMyPost]=useState<string|null>(null);
   const [editingMyPostTitle,setEditingMyPostTitle]=useState("");
   const [editingMyPostBody,setEditingMyPostBody]=useState("");
+  const [myPostMenuId,setMyPostMenuId]=useState<string|null>(null);
   const [viewedProfile,setViewedProfile]=useState<any|null>(null);
   const [viewedPosts,setViewedPosts]=useState<any[]>([]);
   const [viewedLikedPostIds,setViewedLikedPostIds]=useState<string[]>([]);
@@ -591,17 +592,31 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
           <Text style={s.detail}>{ar?"الخصوصية ونوع الحساب من زر تعديل الملف الشخصي.":"Privacy and account type are managed in Edit profile."}</Text>
         </View>
         <Button label={ar?"نشر منشور من حسابي":"Publish from profile"} onPress={onOpenComposer}/>
-        <Text style={[s.section,ar&&s.rtl]}>{ar?"منشوراتي":"My posts"}</Text>
-        {myPosts.map(p=><View key={p.id} style={s.card}>
-          <Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}
-          <View style={{flexDirection:"row",flexWrap:"nowrap",justifyContent:"space-between",gap:2,marginTop:12,borderTopWidth:1,borderTopColor:C.line,paddingTop:8}}>
+        <T        {myPosts.map(p=><View key={p.id} style={s.card}>
+          <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}>
+            <View style={{flex:1}}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.status}>{new Date(p.created_at).toLocaleString(ar?"ar":"en")}</Text></View>
+            <Pressable onPress={()=>setMyPostMenuId(myPostMenuId===p.id?null:p.id)} hitSlop={12} accessibilityRole="button" accessibilityLabel={ar?"خيارات المنشور":"Post options"} style={{width:42,height:42,alignItems:"center",justifyContent:"center",borderRadius:12,backgroundColor:C.pale,borderWidth:1,borderColor:C.line}}><MaterialCommunityIcons name="dots-vertical" size={23} color={C.ink}/></Pressable>
+          </View>
+          {myPostMenuId===p.id&&<View style={{marginTop:8,padding:7,borderWidth:1,borderColor:C.line,borderRadius:12,backgroundColor:C.white,gap:3}}>
+            <Pressable onPress={()=>{setEditingMyPost(p.id);setEditingMyPostTitle(p.title||"");setEditingMyPostBody(p.body||"");setMyPostMenuId(null);}} style={{minHeight:44,flexDirection:"row",alignItems:"center",gap:10,paddingHorizontal:10}}><MaterialCommunityIcons name="pencil-outline" size={19} color={C.blue}/><Text style={s.detail}>{ar?"تعديل المنشور":"Edit post"}</Text></Pressable>
+            <Pressable onPress={()=>{togglePinMyPost(p);setMyPostMenuId(null);}} style={{minHeight:44,flexDirection:"row",alignItems:"center",gap:10,paddingHorizontal:10}}><MaterialCommunityIcons name="pin-outline" size={19} color={C.blue}/><Text style={s.detail}>{p.pinned_at?(ar?"إلغاء التثبيت":"Unpin post"):(ar?"تثبيت المنشور":"Pin post")}</Text></Pressable>
+            <Pressable onPress={()=>{setMyPostMenuId(null);deleteMyPost(p.id);}} style={{minHeight:44,flexDirection:"row",alignItems:"center",gap:10,paddingHorizontal:10}}><MaterialCommunityIcons name="trash-can-outline" size={19} color={C.red}/><Text style={{color:C.red,fontWeight:"800"}}>{ar?"حذف المنشور نهائياً":"Delete post permanently"}</Text></Pressable>
+          </View>}
+          {editingMyPost===p.id?<View style={{marginTop:10,gap:9}}>
+            <TextInput value={editingMyPostTitle} onChangeText={setEditingMyPostTitle} placeholder={ar?"عنوان المنشور":"Post title"} placeholderTextColor={C.muted} style={[s.input,ar&&s.rtl]}/>
+            <TextInput value={editingMyPostBody} onChangeText={setEditingMyPostBody} multiline placeholder={ar?"محتوى المنشور":"Post content"} placeholderTextColor={C.muted} style={[s.input,{minHeight:100,textAlignVertical:"top"},ar&&s.rtl]}/>
+            <View style={{flexDirection:"row",gap:8}}><Pressable onPress={()=>saveMyPostEdit(p.id)} style={[s.button,{flex:1}]}><Text style={s.buttonText}>{ar?"حفظ التعديل":"Save edit"}</Text></Pressable><Pressable onPress={()=>setEditingMyPost(null)} style={[s.button,{flex:1,backgroundColor:C.muted}]}><Text style={s.buttonText}>{ar?"إلغاء":"Cancel"}</Text></Pressable></View>
+          </View>:<Text style={[s.detail,{marginTop:8}]}>{p.body}</Text>}
+          {p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}
+          <View style={{flexDirection:"row",flexWrap:"wrap",justifyContent:"space-between",gap:7,marginTop:12,borderTopWidth:1,borderTopColor:C.line,paddingTop:10}}>
             <Pressable onPress={()=>toggleMyPostLike(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:likedMyPosts.includes(p.id)?"#FCE8EE":C.pale,borderRadius:10}}><MaterialCommunityIcons name={likedMyPosts.includes(p.id)?"heart":"heart-outline"} size={19} color={likedMyPosts.includes(p.id)?"#D83F69":C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"إعجاب":"Like"}</Text></Pressable>
             <Pressable onPress={()=>setCommentingMyPost(commentingMyPost===p.id?null:p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="comment-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"تعليق":"Comment"}</Text></Pressable>
             <Pressable onPress={()=>Share.share({message:(p.title||"")+"\n\n"+(p.body||"")})} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:C.pale,borderRadius:10}}><MaterialCommunityIcons name="share-variant-outline" size={19} color={C.muted}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"مشاركة":"Share"}</Text></Pressable>
             <Pressable onPress={()=>toggleMyPostSave(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:savedMyPosts.includes(p.id)?"#E8F5FD":C.pale,borderRadius:10}}><MaterialCommunityIcons name={savedMyPosts.includes(p.id)?"bookmark":"bookmark-outline"} size={19} color={C.blue}/><Text style={{color:C.ink,fontWeight:"700",fontSize:12}}>{ar?"حفظ":"Save"}</Text></Pressable>
-            <Pressable onPress={()=>{setEditingMyPost(p.id);setEditingMyPostTitle(p.title||"");setEditingMyPostBody(p.body||"");}} style={{flexDirection:"row",alignItems:"center",gap:3,padding:7,borderRadius:8,backgroundColor:C.pale}}><MaterialCommunityIcons name="pencil-outline" size={17} color={C.blue}/><Text style={{color:C.blue,fontSize:10,fontWeight:"700"}}>{ar?"تعديل":"Edit"}</Text></Pressable><Pressable onPress={()=>togglePinMyPost(p)} style={{flexDirection:"row",alignItems:"center",gap:3,padding:7,borderRadius:8,backgroundColor:p.pinned_at?"#E8F5FD":C.pale}}><MaterialCommunityIcons name="pin-outline" size={17} color={C.blue}/><Text style={{color:C.blue,fontSize:10,fontWeight:"700"}}>{p.pinned_at?(ar?"مثبّت":"Pinned"):(ar?"تثبيت":"Pin")}</Text></Pressable><Pressable onPress={()=>deleteMyPost(p.id)} style={{flexDirection:"row",alignItems:"center",gap:5,padding:9,backgroundColor:"#FCEBED",borderRadius:10}}><MaterialCommunityIcons name="trash-can-outline" size={18} color={C.red}/><Text style={{color:C.red,fontWeight:"700",fontSize:12}}>{ar?"حذف":"Delete"}</Text></Pressable>
           </View>
           {commentingMyPost===p.id&&<View style={{marginTop:10,gap:8}}><TextInput value={myPostComment} onChangeText={setMyPostComment} placeholder={ar?"اكتب تعليقك هنا...":"Write your comment..."} placeholderTextColor={C.muted} style={[s.input,{marginTop:0}]}/><Pressable onPress={()=>sendMyPostComment(p.id)} style={{backgroundColor:C.blue,borderRadius:10,padding:11,alignItems:"center"}}><Text style={{color:"#fff",fontWeight:"800"}}>{ar?"إرسال التعليق":"Post comment"}</Text></Pressable></View>}
+        </View>)}
+تعليق":"Post comment"}</Text></Pressable></View>}
         </View>)}
         {!myPosts.length&&<Text style={s.empty}>{ar?"لا توجد منشورات بعد. استخدم زر + في الرئيسية للنشر.":"No posts yet. Use the + button on Home to publish."}</Text>}
         <Pressable style={s.signout} onPress={async()=>{await supabase?.auth.signOut();}}><Text style={s.signoutText}>{ar?"تسجيل الخروج":"Sign out"}</Text></Pressable>
