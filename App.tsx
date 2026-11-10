@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { BackHandler } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image,
   StatusBar, Share, Alert
@@ -22,6 +24,37 @@ const categories = ["الكل", "البرمجة", "الأمن السيبراني
 function CommunityApp() {
   const [language, setLanguage] = useState<"ar" | "en">("ar");
   const [activeTab, setActiveTab] = useState("home");
+  const [isDark, setIsDark] = useState(false);
+  const [simpleMode, setSimpleMode] = useState(false);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    AsyncStorage.getItem("tech-community-preferences").then(raw => {
+      if (!alive) return;
+      if (raw) {
+        const saved = JSON.parse(raw);
+        setIsDark(!!saved.isDark);
+        setSimpleMode(!!saved.simpleMode);
+        if (typeof saved.activeTab === "string" && ["home","explore","features","groups","messages","profile","settings"].includes(saved.activeTab)) setActiveTab(saved.activeTab);
+      }
+    }).catch(() => {}).finally(() => { if (alive) setPreferencesLoaded(true); });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!preferencesLoaded) return;
+    AsyncStorage.setItem("tech-community-preferences", JSON.stringify({ isDark, simpleMode, activeTab })).catch(() => {});
+  }, [isDark, simpleMode, activeTab, preferencesLoaded]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (activeTab !== "home") { setActiveTab("home"); return true; }
+      if (composerOpen) { setComposerOpen(false); return true; }
+      return false;
+    });
+    return () => sub.remove();
+  }, [activeTab, composerOpen]);
   const [activeCategory, setActiveCategory] = useState("الكل");
   const [query, setQuery] = useState("");
   const [liked, setLiked] = useState<Array<string | number>>([]);
@@ -115,7 +148,7 @@ function CommunityApp() {
     { key:"messages", icon:"message-text-outline" as const, label:labels.messages },
     { key:"profile", icon:"account-circle-outline" as const, label:labels.profile },
     { key:"settings", icon:"cog-outline" as const, label:isArabic?"الإعدادات":"Settings" }
-  ];
+  ].filter(item => !simpleMode || item.key !== "features");
 
   const loadPostComments = async (postId:string) => {
     if(!supabase)return;
@@ -256,15 +289,15 @@ function CommunityApp() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe,{backgroundColor:"#FFFFFF"}]}>
-      <ExpoStatusBar style="dark" />
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <View style={[styles.app,{backgroundColor:"#FFFFFF"}]}>
-        <View style={styles.topBar}>
+    <SafeAreaView style={[styles.safe,{backgroundColor:isDark?"#101820":"#FFFFFF"}]}>
+      <ExpoStatusBar style={isDark?"light":"dark"} />
+      <StatusBar barStyle={isDark?"light-content":"dark-content"} backgroundColor={isDark?"#101820":"#FFFFFF"} />
+      <View style={[styles.app,{backgroundColor:isDark?"#101820":"#FFFFFF"}]}>
+        <View style={[styles.topBar,isDark&&{backgroundColor:"#101820",borderBottomColor:"#263746"}]}>
           <View style={styles.brandWrap}>
             <View style={styles.brandMark}><MaterialCommunityIcons name="code-braces" size={22} color="#FFFFFF" /></View>
             <View>
-              <Text style={styles.brand}>TECH COMMUNITY</Text>
+              <Text style={[styles.brand,isDark&&{color:"#F2F6FA"}]}>TECH COMMUNITY</Text>
               <Text style={styles.brandSub}>CONNECT • LEARN • BUILD</Text>
             </View>
           </View>
@@ -272,23 +305,23 @@ function CommunityApp() {
             <Pressable style={styles.langButton} onPress={()=>setLanguage(language==="ar"?"en":"ar")}>
               <Text style={styles.langText}>{isArabic ? "EN" : "ع"} </Text>
             </Pressable>
-            <Pressable style={styles.iconButton} onPress={()=>setActiveTab("messages")}>
+            <Pressable style={styles.iconButton} onPress={()=>setActiveTab("settings")}>
               <MaterialCommunityIcons name="bell-outline" size={21} color="#536471" />
               <View style={styles.notificationDot} />
             </Pressable>
           </View>
         </View>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {activeTab !== "home" ? <SecondaryScreen tab={activeTab} isArabic={isArabic} onBackHome={() => setActiveTab("home")} onOpenMessages={() => setActiveTab("messages")} onOpenComposer={()=>{setActiveTab("home");setComposerType("post");setComposerOpen(true);}} /> : <>
-          <View style={styles.hero}>
+        <ScrollView style={[styles.scroll,isDark&&{backgroundColor:"#101820"}]} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {activeTab !== "home" ? <SecondaryScreen tab={activeTab} isArabic={isArabic} isDark={isDark} simpleMode={simpleMode} initialSettingsSection={activeTab==="settings"?"notifications":undefined} onToggleTheme={()=>setIsDark(v=>!v)} onToggleSimpleMode={()=>setSimpleMode(v=>!v)} onBackHome={() => setActiveTab("home")} onOpenMessages={() => setActiveTab("messages")} onOpenComposer={()=>{setActiveTab("home");setComposerType("post");setComposerOpen(true);}} /> : <>
+          <View style={[styles.hero,isDark&&{backgroundColor:"#172632",borderColor:"#263746"}]}>
             <View style={styles.heroGlow} />
             <View style={styles.heroTop}>
               <View style={styles.livePill}><View style={styles.liveDot}/><Text style={styles.liveText}>TECH NETWORK</Text></View>
               <MaterialCommunityIcons name="orbit" size={25} color="#1D9BF0" />
             </View>
-            <Text style={[styles.heroTitle, isArabic && styles.rtl]}>{labels.greeting}</Text>
-            <Text style={[styles.heroSubtitle, isArabic && styles.rtl]}>{labels.subtitle}</Text>
+            <Text style={[styles.heroTitle, isArabic && styles.rtl,isDark&&{color:"#F2F6FA"}]}>{labels.greeting}</Text>
+            <Text style={[styles.heroSubtitle, isArabic && styles.rtl,isDark&&{color:"#B7C7D6"}]}>{labels.subtitle}</Text>
             <View style={[styles.heroStats,{display:"none"}]}>
               <View><Text style={styles.statNumber}>12K+</Text><Text style={styles.statLabel}>{isArabic?"عضو تقني":"Members"}</Text></View>
               <View style={styles.statDivider}/>
@@ -298,9 +331,9 @@ function CommunityApp() {
             </View>
           </View>
 
-          <View style={styles.searchBox}>
+          <View style={[styles.searchBox,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}>
             <MaterialCommunityIcons name="magnify" size={21} color="#7F9AB6" />
-            <TextInput value={query} onChangeText={setQuery} placeholder={labels.search} placeholderTextColor="#7188A2" style={[styles.searchInput, isArabic && styles.rtl]} />
+            <TextInput value={query} onChangeText={setQuery} placeholder={labels.search} placeholderTextColor="#7188A2" style={[styles.searchInput, isArabic && styles.rtl,isDark&&{color:"#F2F6FA"}]} />
             <MaterialCommunityIcons name="tune-variant" size={19} color="#7F9AB6" />
           </View>
 
@@ -358,12 +391,12 @@ function CommunityApp() {
           {visiblePosts.map(post => {
             const isLiked = liked.includes(post.id);
             const isSaved = saved.includes(post.id);
-            return <View key={post.id} style={styles.postCard}>
+            return <View key={post.id} style={[styles.postCard,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}>
               <View style={styles.postHeader}>
                 {post.avatarUrl ? <Image source={{uri:post.avatarUrl}} style={[styles.avatar,{overflow:"hidden"}]} /> : <View style={[styles.avatar,{backgroundColor:post.color+"22",borderColor:post.color+"66"}]}><MaterialCommunityIcons name={post.icon} size={23} color={post.color}/></View>}
                 <View style={styles.authorInfo}>
-                  <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text>{post.isVerified&&<Pressable onPress={()=>Alert.alert("توثيق الحساب","تم التوثيق من شركة المجتمع التقني.\\nالمؤسسة: المجتمع التقني – Tech Community.")}><MaterialCommunityIcons name="check-decagram" size={15} color={post.accountType==="company"?"#89939D":"#1D9BF0"}/></Pressable>}</View>
-                  <Text style={styles.authorRole}>{post.role} · {post.time}</Text>
+                  <View style={styles.nameLine}><Text style={[styles.authorName,isDark&&{color:"#F2F6FA"}]}>{post.name}</Text>{post.isVerified&&<Pressable onPress={()=>Alert.alert("توثيق الحساب","تم التوثيق من شركة المجتمع التقني.\\nالمؤسسة: المجتمع التقني – Tech Community.")}><MaterialCommunityIcons name="check-decagram" size={15} color={post.accountType==="company"?"#89939D":"#1D9BF0"}/></Pressable>}</View>
+                  <Text style={[styles.authorRole,isDark&&{color:"#AABAC8"}]}>{post.role} · {post.time}</Text>
                 </View>
                 <Pressable hitSlop={14} accessibilityRole="button" accessibilityLabel={isArabic?"خيارات المنشور":"Post options"} style={{width:38,height:38,marginLeft:8,alignItems:"center",justifyContent:"center",borderRadius:12,backgroundColor:"#EEF3F7",borderWidth:1,borderColor:"#D5E0E8"}} onPress={()=>openPostMenu(post)}><MaterialCommunityIcons name="dots-vertical" size={23} color="#263746"/></Pressable>
               </View>
@@ -406,10 +439,10 @@ function CommunityApp() {
           </>}
         </ScrollView>
 
-        <View style={styles.bottomNav}>
+        <View style={[styles.bottomNav,isDark&&{backgroundColor:"#111E29",borderTopColor:"#263746"}]}>
           {navItems.map(item=><Pressable key={item.key} onPress={()=>setActiveTab(item.key)} style={styles.navItem}>
             <View style={[styles.navIconWrap,activeTab===item.key&&styles.navIconActive]}><MaterialCommunityIcons name={item.icon} size={21} color={activeTab===item.key?"#1D9BF0":"#7891AB"}/></View>
-            <Text style={[styles.navLabel,activeTab===item.key&&styles.navLabelActive]}>{item.label}</Text>
+            <Text style={[styles.navLabel,activeTab===item.key&&styles.navLabelActive,isDark&&{color:activeTab===item.key?"#61B8F2":"#AABAC8"}]}>{item.label}</Text>
           </Pressable>)}
         </View>
       </View>
