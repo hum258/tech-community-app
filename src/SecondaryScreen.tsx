@@ -57,6 +57,8 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
   const [editingMyPostBody,setEditingMyPostBody]=useState("");
   const [viewedProfile,setViewedProfile]=useState<any|null>(null);
   const [viewedPosts,setViewedPosts]=useState<any[]>([]);
+  const [viewedLikedPostIds,setViewedLikedPostIds]=useState<string[]>([]);
+  const [viewedPostMetrics,setViewedPostMetrics]=useState<Record<string,any>>({});
   const [viewedStats,setViewedStats]=useState({posts:0,followers:0,following:0});
   const [settingsSection,setSettingsSection]=useState<string|null>(null);
   const [settingsEmail,setSettingsEmail]=useState("");
@@ -230,8 +232,29 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
       supabase.from("profile_follows").select("follower_id",{count:"exact",head:true}).eq("following_id",id),
       supabase.from("profile_follows").select("following_id",{count:"exact",head:true}).eq("follower_id",id)
     ]);
+    const ids=(postsResult.data||[]).map((p:any)=>p.id);
+    if(ids.length&&userId){
+      const [{data:allLikes},{data:mine},{data:metrics}]=await Promise.all([
+        supabase.from("post_likes").select("post_id").in("post_id",ids),
+        supabase.from("post_likes").select("post_id").eq("user_id",userId).in("post_id",ids),
+        supabase.rpc("get_post_metrics",{post_ids:ids})
+      ]);
+      const map:Record<string,any>={};
+      ids.forEach((postId:string)=>map[postId]={likes:(allLikes||[]).filter((x:any)=>x.post_id===postId).length});
+      (metrics||[]).forEach((m:any)=>map[m.post_id]={...map[m.post_id],...m});
+      setViewedPostMetrics(map);setViewedLikedPostIds((mine||[]).map((x:any)=>x.post_id));
+    }else{setViewedPostMetrics({});setViewedLikedPostIds([]);}
     setViewedProfile(data);setViewedPosts(postsResult.data||[]);
     setViewedStats({posts:postCountResult.count||0,followers:followersResult.count||0,following:followingResult.count||0});setBusy(false);
+  };
+
+  const toggleViewedPostLike=async(postId:string)=>{
+    if(!supabase||!userId)return;
+    const exists=viewedLikedPostIds.includes(postId);
+    setViewedLikedPostIds(old=>exists?old.filter(x=>x!==postId):[...old,postId]);
+    setViewedPostMetrics(old=>({...old,[postId]:{...old[postId],likes:Math.max(0,Number(old[postId]?.likes||0)+(exists?-1:1))}}));
+    const {error}=exists?await supabase.from("post_likes").delete().eq("post_id",postId).eq("user_id",userId):await supabase.from("post_likes").insert({post_id:postId,user_id:userId});
+    if(error){setViewedLikedPostIds(old=>exists?[...old,postId]:old.filter(x=>x!==postId));setViewedPostMetrics(old=>({...old,[postId]:{...old[postId],likes:Math.max(0,Number(old[postId]?.likes||0)+(exists?1:-1))}}));showNotice(error.message);}
   };
 
   const chooseAvatar=async()=>{
@@ -450,7 +473,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
   <Pressable onPress={()=>startConversationWith(viewedProfile)} style={[s.button,{flex:1,backgroundColor:C.ink}]}><Text style={s.buttonText}>{ar?"مراسلة":"Message"}</Text></Pressable>
       </View>
       {viewedProfile.is_private&&<Text style={s.detail}>{ar?"هذا الحساب خاص.":"This account is private."}</Text>}
-      {viewedPosts.map(p=><View key={p.id} style={s.card}>{editingMyPost===p.id?<View style={{gap:8}}><TextInput value={editingMyPostTitle} onChangeText={setEditingMyPostTitle} placeholder={ar?"عنوان المنشور":"Post title"} style={s.input}/><TextInput value={editingMyPostBody} onChangeText={setEditingMyPostBody} multiline placeholder={ar?"محتوى المنشور":"Post content"} style={[s.input,{minHeight:90,textAlignVertical:"top"}]}/><View style={{flexDirection:"row",gap:8}}><Pressable onPress={()=>saveMyPostEdit(p.id)} style={[s.button,{flex:1}]}><Text style={s.buttonText}>{ar?"حفظ التعديل":"Save edit"}</Text></Pressable><Pressable onPress={()=>setEditingMyPost(null)} style={[s.button,{flex:1,backgroundColor:C.muted}]}><Text style={s.buttonText}>{ar?"إلغاء":"Cancel"}</Text></Pressable></View></View>:<><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text></>}{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}<View style={{flexDirection:"row",justifyContent:"space-around",paddingVertical:9,backgroundColor:C.pale,borderRadius:10,marginTop:8}}>{[[myPostMetrics[p.id]?.views||0,ar?"مشاهدة":"Views","eye"],[myPostMetrics[p.id]?.likes||0,ar?"إعجاب":"Likes","heart"],[myPostMetrics[p.id]?.comments||0,ar?"تعليق":"Comments","comment-outline"],[myPostMetrics[p.id]?.reposts||0,ar?"إعادة نشر":"Reposts","repeat"],[myPostMetrics[p.id]?.saves||0,ar?"حفظ":"Saves","bookmark-outline"],[myPostMetrics[p.id]?.shares||0,ar?"مشاركة":"Shares","share-variant-outline"]].map(([n,label,ic]:any)=><View key={label} style={{alignItems:"center",gap:2}}><MaterialCommunityIcons name={ic} size={16} color={C.muted}/><Text style={{fontSize:12,fontWeight:"900",color:C.ink}}>{n}</Text><Text style={{fontSize:9,color:C.muted}}>{label}</Text></View>)}</View></View>)}
+      {viewedPosts.map(p=><View key={p.id} style={s.card}>{editingMyPost===p.id?<View style={{gap:8}}><TextInput value={editingMyPostTitle} onChangeText={setEditingMyPostTitle} placeholder={ar?"عنوان المنشور":"Post title"} style={s.input}/><TextInput value={editingMyPostBody} onChangeText={setEditingMyPostBody} multiline placeholder={ar?"محتوى المنشور":"Post content"} style={[s.input,{minHeight:90,textAlignVertical:"top"}]}/><View style={{flexDirection:"row",gap:8}}><Pressable onPress={()=>saveMyPostEdit(p.id)} style={[s.button,{flex:1}]}><Text style={s.buttonText}>{ar?"حفظ التعديل":"Save edit"}</Text></Pressable><Pressable onPress={()=>setEditingMyPost(null)} style={[s.button,{flex:1,backgroundColor:C.muted}]}><Text style={s.buttonText}>{ar?"إلغاء":"Cancel"}</Text></Pressable></View></View>:<><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text></>}{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}<View style={{flexDirection:"row",justifyContent:"space-around",paddingVertical:9,backgroundColor:C.pale,borderRadius:10,marginTop:8}}>{[[viewedPostMetrics[p.id]?.views||0,ar?"مشاهدة":"Views","eye"],[viewedPostMetrics[p.id]?.likes||0,ar?"إعجاب":"Likes","heart"],[viewedPostMetrics[p.id]?.comments||0,ar?"تعليق":"Comments","comment-outline"],[viewedPostMetrics[p.id]?.reposts||0,ar?"إعادة نشر":"Reposts","repeat"],[viewedPostMetrics[p.id]?.saves||0,ar?"حفظ":"Saves","bookmark-outline"],[viewedPostMetrics[p.id]?.shares||0,ar?"مشاركة":"Shares","share-variant-outline"]].map(([n,label,ic]:any)=><View key={label} style={{alignItems:"center",gap:2}}><MaterialCommunityIcons name={ic} size={16} color={C.muted}/><Text style={{fontSize:12,fontWeight:"900",color:C.ink}}>{n}</Text><Text style={{fontSize:9,color:C.muted}}>{label}</Text></View>)}</View><Pressable onPress={()=>toggleViewedPostLike(p.id)} style={{flexDirection:"row",alignItems:"center",gap:7,marginTop:10,padding:9,backgroundColor:viewedLikedPostIds.includes(p.id)?"#FCE8EE":C.pale,borderRadius:10,alignSelf:"flex-start"}}><MaterialCommunityIcons name={viewedLikedPostIds.includes(p.id)?"heart":"heart-outline"} size={18} color={viewedLikedPostIds.includes(p.id)?"#D83F69":C.muted}/><Text style={{color:C.ink,fontWeight:"800"}}>{ar?"إعجاب":"Like"} · {viewedPostMetrics[p.id]?.likes||0}</Text></Pressable></View>)}
       {!viewedPosts.length&&<Text style={s.empty}>{ar?"لا توجد منشورات بعد.":"No posts yet."}</Text>}
     </View>}
 
