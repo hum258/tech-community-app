@@ -24,7 +24,7 @@ module.exports = function withTechCommunitySplash(config) {
     for (const style of styles.resources.style || []) {
       if (style.$ && style.$.name === "Theme.App.SplashScreen") {
         style.item = (style.item || []).filter((item) => item.$.name !== "windowSplashScreenAnimatedIcon");
-        style.item.push({ $: { name: "windowSplashScreenAnimatedIcon", "tools:targetApi": "31" }, _: "@drawable/tech_community_splash" });
+        style.item.push({ $: { name: "windowSplashScreenAnimatedIcon" }, _: "@drawable/tech_community_splash" });
         style.item.push({ $: { name: "windowSplashScreenBackground" }, _: "#FFFFFF" });
       }
     }
