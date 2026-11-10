@@ -11,7 +11,7 @@ type Conversation = { id:string; created_at:string; peerName:string; peerUsernam
 
 const C = { blue:"#1D9BF0", ink:"#17202A", muted:"#657786", line:"#E6ECF0", pale:"#F5F8FA", white:"#FFFFFF", green:"#168A62", red:"#D9485F" };
 
-export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
+export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}:Props) {
   const ar=isArabic;
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState("");
