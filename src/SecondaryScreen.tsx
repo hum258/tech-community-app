@@ -299,6 +299,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
       {text:ar?"التعليق":"Comment",onPress:()=>{setCommentingViewedPost(post.id);loadViewedPostComments(post.id);}},
       {text:saved?(ar?"إزالة من المحفوظات":"Remove saved"):(ar?"حفظ المنشور":"Save post"),onPress:()=>toggleViewedPostSave(post.id)},
       {text:ar?"مشاركة":"Share",onPress:()=>shareViewedPost(post)},
+      {text:ar?"حظر صاحب المنشور":"Block author",style:"destructive",onPress:()=>Alert.alert(ar?"حظر الحساب":"Block account",ar?"لن تظهر منشورات هذا الحساب في موجزك.":"Posts from this account will be hidden from your feed.",[{text:ar?"إلغاء":"Cancel",style:"cancel"},{text:ar?"حظر":"Block",style:"destructive",onPress:async()=>{if(!supabase||!userId||post.author_id===userId)return;const {error}=await supabase.from("user_blocks").insert({blocker_id:userId,blocked_id:post.author_id});if(error){showNotice(error.message);return;}setViewedProfile(null);showNotice(ar?"تم حظر الحساب وإخفاء منشوراته من هذه الصفحة.":"Account blocked; its posts are hidden from this page.");}}])},
       {text:ar?"إبلاغ":"Report",onPress:()=>Alert.alert(ar?"الإبلاغ عن المنشور":"Report post",ar?"هل تريد إرسال بلاغ عن هذا المنشور؟":"Report this post?",[{text:ar?"إلغاء":"Cancel",style:"cancel"},{text:ar?"إبلاغ":"Report",style:"destructive",onPress:async()=>{const {error}=await supabase!.from("content_reports").insert({reporter_id:userId,post_id:post.id,reason:ar?"إبلاغ من الملف الشخصي":"Reported from profile"});showNotice(error?error.message:(ar?"تم إرسال البلاغ.":"Report submitted."));}}])},
       {text:ar?"إلغاء":"Cancel",style:"cancel"}
     ]);
@@ -458,6 +459,10 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages,
   const Button=({label,onPress,disabled=false}:any)=><Pressable disabled={disabled||busy} onPress={onPress} style={[s.button,(disabled||busy)&&{opacity:.55}]}><Text style={s.buttonText}>{busy? (ar?"جارٍ التنفيذ...":"Please wait..."):label}</Text></Pressable>;
 
   return <View style={s.wrap}>
+    <Pressable onPress={onBackHome} accessibilityRole="button" accessibilityLabel={ar?"رجوع":"Back"} style={{alignSelf:"flex-start",flexDirection:"row",alignItems:"center",gap:7,paddingVertical:9,paddingHorizontal:12,borderRadius:11,backgroundColor:C.pale,marginBottom:10}}>
+      <MaterialCommunityIcons name="arrow-left" size={19} color={C.blue}/>
+      <Text style={{color:C.blue,fontWeight:"800",fontSize:13}}>{ar?"رجوع":"Back"}</Text>
+    </Pressable>
     <Text style={s.eyebrow}>{ar?"مساحتك التقنية":"YOUR TECH SPACE"}</Text>
     <Text style={[s.title,ar&&s.rtl]}>{title}</Text>
     {!!notice&&<View style={s.notice}><Text style={[s.noticeText,ar&&s.rtl]}>{notice}</Text><Pressable onPress={()=>setNotice("")}><MaterialCommunityIcons name="close" size={17} color={C.muted}/></Pressable></View>}
