@@ -91,6 +91,7 @@ function CommunityApp() {
   const navItems = [
     { key:"home", icon:"home-variant-outline" as const, label:labels.home },
     { key:"explore", icon:"compass-outline" as const, label:labels.explore },
+    { key:"features", icon:"apps" as const, label:isArabic?"الميزات":"Features" },
     { key:"groups", icon:"account-group-outline" as const, label:labels.groups },
     { key:"messages", icon:"message-text-outline" as const, label:labels.messages },
     { key:"profile", icon:"account-circle-outline" as const, label:labels.profile },
