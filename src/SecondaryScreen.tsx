@@ -5,7 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import { supabase } from "./lib/supabase";
 
 type Props = { tab: string; isArabic: boolean; onBackHome: () => void };
-type Profile = { id:string; account_type:"personal"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null; avatar_url:string|null; is_verified:boolean };
+type Profile = { id:string; account_type:"personal"|"company"; account_mode:"personal"|"business"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; hide_followers:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null; avatar_url:string|null; cover_url:string|null; is_verified:boolean };
 type Community = { id:string; name:string; description:string; specialty:string };
 type Conversation = { id:string; created_at:string; peerName:string; peerUsername:string };
 
@@ -37,14 +37,22 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
   const [activePeer,setActivePeer]=useState("");
   const [messages,setMessages]=useState<any[]>([]);
   const [messageDraft,setMessageDraft]=useState("");
+  const [coverUrl,setCoverUrl]=useState("");
+  const [accountMode,setAccountMode]=useState<"personal"|"business"|"company">("personal");
+  const [hideFollowers,setHideFollowers]=useState(false);
+  const [showPeopleList,setShowPeopleList]=useState<"followers"|"following"|null>(null);
+  const [peopleList,setPeopleList]=useState<any[]>([]);
+  const [viewedProfile,setViewedProfile]=useState<any|null>(null);
+  const [viewedPosts,setViewedPosts]=useState<any[]>([]);
+
 
   const loadProfile=useCallback(async()=>{
     if(!supabase)return;
     const {data:{user}}=await supabase.auth.getUser();
     if(!user)return;
     setUserId(user.id);
-    const {data}=await supabase.from("profiles").select("id,account_type,display_name,username,bio,specialty,is_private,interests,company_name,company_website,company_industry,verification_status,verified_at,avatar_url,is_verified").eq("id",user.id).maybeSingle();
-    if(data){const p=data as Profile;setProfile(p);setDisplayName(p.display_name||"");setUsername(p.username||"");setBio(p.bio||"");setSpecialty(p.specialty||"");setPrivateAccount(!!p.is_private);}
+    const {data}=await supabase.from("profiles").select("id,account_type,account_mode,display_name,username,bio,specialty,is_private,hide_followers,interests,company_name,company_website,company_industry,verification_status,verified_at,avatar_url,cover_url,is_verified").eq("id",user.id).maybeSingle();
+    if(data){const p=data as Profile;setProfile(p);setDisplayName(p.display_name||"");setUsername(p.username||"");setBio(p.bio||"");setSpecialty(p.specialty||"");setPrivateAccount(!!p.is_private);setCoverUrl(p.cover_url||"");setAccountMode(p.account_mode||p.account_type||"personal");setHideFollowers(!!p.hide_followers);}
     const [posts,followers,following]=await Promise.all([
       supabase.from("posts").select("id",{count:"exact",head:true}).eq("author_id",user.id),
       supabase.from("profile_follows").select("follower_id",{count:"exact",head:true}).eq("following_id",user.id),
@@ -109,7 +117,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
   const saveProfile=async()=>{
     if(!supabase||!userId||!displayName.trim()||!username.trim()){showNotice(ar?"الاسم واسم المستخدم مطلوبان.":"Name and username are required.");return;}
     if(!/^[a-zA-Z0-9_]{3,20}$/.test(username.trim())){showNotice(ar?"اسم المستخدم يجب أن يكون 3–20 حرفاً أو رقماً أو _.":"Username must be 3–20 letters, numbers or underscores.");return;}
-    setBusy(true);const {error}=await supabase.from("profiles").update({display_name:displayName.trim(),username:username.trim().toLowerCase(),bio:bio.trim(),specialty:specialty.trim()||null,is_private:privateAccount}).eq("id",userId);setBusy(false);
+    setBusy(true);const {error}=await supabase.from("profiles").update({display_name:displayName.trim(),username:username.trim().toLowerCase(),bio:bio.trim(),specialty:specialty.trim()||null,is_private:privateAccount,account_mode:accountMode,hide_followers:hideFollowers}).eq("id",userId);setBusy(false);
     if(error){showNotice(error.message);return;}setEdit(false);showNotice(ar?"تم حفظ الملف الشخصي.":"Profile saved.");loadProfile();
   };
 
@@ -130,6 +138,47 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     if(error){showNotice(error.message);return;}
     setProfile({...profile,is_verified:next});
     showNotice(next?(ar?"تم تفعيل شارة التوثيق.":"Verification badge enabled."):(ar?"تم إيقاف شارة التوثيق.":"Verification badge disabled."));
+  };
+
+  const chooseCover=async()=>{
+    if(!supabase||!userId||!profile)return;
+    const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if(!permission.granted){showNotice(ar?"اسمح للتطبيق بالوصول إلى الصور.":"Allow photo library access.");return;}
+    const picked=await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsEditing:true,aspect:[16,5],quality:0.85});
+    if(picked.canceled||!picked.assets[0])return;
+    setBusy(true);
+    try{
+      const asset=picked.assets[0];const response=await fetch(asset.uri);const bytes=await response.arrayBuffer();
+      const ext=(asset.mimeType||"image/jpeg").split("/")[1]||"jpg";const path=userId+"/cover-"+Date.now()+"."+ext;
+      const uploaded=await supabase.storage.from("post-images").upload(path,bytes,{contentType:asset.mimeType||"image/jpeg",upsert:true});
+      if(uploaded.error)throw uploaded.error;
+      const url=supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
+      const saved=await supabase.from("profiles").update({cover_url:url}).eq("id",userId);
+      if(saved.error)throw saved.error;
+      setCoverUrl(url);setProfile({...profile,cover_url:url});showNotice(ar?"تم تحديث صورة الغلاف.":"Cover photo updated.");
+    }catch(e:any){showNotice((ar?"تعذر رفع الغلاف: ":"Could not upload cover: ")+(e?.message||""));}
+    finally{setBusy(false);}
+  };
+
+  const openPeopleList=async(kind:"followers"|"following")=>{
+    if(!supabase||!userId)return;
+    setBusy(true);
+    const col=kind==="followers"?"follower_id":"following_id";
+    const filter=kind==="followers"?"following_id":"follower_id";
+    const {data,error}=await supabase.from("profile_follows").select(col+",profiles!profile_follows_"+col+"_fkey(id,display_name,username,avatar_url,is_verified,account_type)").eq(filter,userId);
+    setBusy(false);
+    if(error){showNotice(error.message);return;}
+    setPeopleList((data||[]).map((x:any)=>x.profiles).filter(Boolean));
+    setShowPeopleList(kind);
+  };
+
+  const openProfile=async(id:string)=>{
+    if(!supabase)return;
+    setBusy(true);
+    const {data,error}=await supabase.from("profiles").select("id,display_name,username,bio,specialty,avatar_url,cover_url,is_verified,account_type,account_mode,is_private,hide_followers").eq("id",id).maybeSingle();
+    if(error||!data){setBusy(false);showNotice(ar?"تعذر فتح الحساب.":"Could not open profile.");return;}
+    const {data:rows}=await supabase.from("posts").select("id,title,body,image_url,created_at").eq("author_id",id).order("created_at",{ascending:false}).limit(50);
+    setViewedProfile(data);setViewedPosts(rows||[]);setBusy(false);
   };
 
   const chooseAvatar=async()=>{
@@ -185,10 +234,32 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
     <Text style={[s.title,ar&&s.rtl]}>{title}</Text>
     {!!notice&&<View style={s.notice}><Text style={[s.noticeText,ar&&s.rtl]}>{notice}</Text><Pressable onPress={()=>setNotice("")}><MaterialCommunityIcons name="close" size={17} color={C.muted}/></Pressable></View>}
 
-    {tab==="explore"&&<>
+    {showPeopleList&&<View style={s.card}>
+      <Pressable onPress={()=>setShowPeopleList(null)} style={s.back}><MaterialCommunityIcons name="arrow-left" size={18} color={C.blue}/><Text style={s.backText}>{ar?"رجوع للملف الشخصي":"Back to profile"}</Text></Pressable>
+      <Text style={s.cardTitle}>{showPeopleList==="followers"?(ar?"المتابعون":"Followers"):(ar?"يتابع":"Following")}</Text>
+      {peopleList.map(p=><Pressable key={p.id} onPress={()=>openProfile(p.id)} style={s.personCard}><Text style={s.cardTitle}>{p.display_name||p.username}</Text><Text style={s.detail}>@{p.username}</Text></Pressable>)}
+      {!peopleList.length&&<Text style={s.empty}>{ar?"لا توجد حسابات لعرضها.":"No accounts to show."}</Text>}
+    </View>}
+
+    {viewedProfile&&!showPeopleList&&<View style={s.card}>
+      <Pressable onPress={()=>setViewedProfile(null)} style={s.back}><MaterialCommunityIcons name="arrow-left" size={18} color={C.blue}/><Text style={s.backText}>{ar?"رجوع":"Back"}</Text></Pressable>
+      {viewedProfile.cover_url?<Image source={{uri:viewedProfile.cover_url}} style={s.coverImage}/>:<View style={s.coverPlaceholder}/>}
+      <View style={{flexDirection:"row",alignItems:"center",gap:8,marginTop:10}}>
+        {viewedProfile.avatar_url?<Image source={{uri:viewedProfile.avatar_url}} style={s.personAvatar}/>:<View style={s.personAvatarFallback}><MaterialCommunityIcons name="account" size={22} color={C.blue}/></View>}
+        <View style={{flex:1}}><Text style={s.profileName}>{viewedProfile.display_name}</Text><Text style={s.detail}>@{viewedProfile.username}</Text></View>
+        {viewedProfile.is_verified&&<MaterialCommunityIcons name="check-decagram" size={20} color={viewedProfile.account_type==="company"?"#89939D":C.blue}/>}
+      </View>
+      <Text style={s.bio}>{viewedProfile.bio||""}</Text>
+      {!!viewedProfile.specialty&&<Text style={s.detail}>{viewedProfile.specialty}</Text>}
+      {viewedProfile.is_private&&<Text style={s.detail}>{ar?"هذا الحساب خاص.":"This account is private."}</Text>}
+      {viewedPosts.map(p=><View key={p.id} style={s.card}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.detail}>{p.body}</Text>{p.image_url&&<Image source={{uri:p.image_url}} style={s.coverImage}/>}</View>)}
+      {!viewedPosts.length&&<Text style={s.empty}>{ar?"لا توجد منشورات بعد.":"No posts yet."}</Text>}
+    </View>}
+
+    {!viewedProfile&&tab==="explore"&&<>
       <TextInput value={query} onChangeText={setQuery} placeholder={ar?"ابحث عن مجتمعات وتخصصات...":"Search communities and topics..."} placeholderTextColor="#9AA8B2" style={[s.input,ar&&s.rtl]}/>
       <Text style={[s.section,ar&&s.rtl]}>{ar?"الأشخاص":"People"}</Text>
-      {people.map(person=><View key={person.id} style={s.personCard}>
+      {people.map(person=><Pressable key={person.id} onPress={()=>openProfile(person.id)} style={s.personCard}>
         {person.avatar_url?<Image source={{uri:person.avatar_url}} style={s.personAvatar}/>:<View style={s.personAvatarFallback}><MaterialCommunityIcons name={person.account_type==="company"?"domain":"account"} size={22} color={C.blue}/></View>}
         <View style={{flex:1}}>
           <View style={{flexDirection:"row",alignItems:"center",gap:4}}><Text style={s.cardTitle}>{person.display_name||person.username}</Text>{person.is_verified&&<MaterialCommunityIcons name="check-decagram" size={16} color={person.account_type==="company"?"#89939D":C.blue}/>}</View>
@@ -208,7 +279,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
       {communities.map(x=>{const yes=joined.includes(x.id);return <View key={x.id} style={s.card}><Text style={[s.cardTitle,ar&&s.rtl]}>{x.name}</Text><Text style={[s.detail,ar&&s.rtl]}>{x.description}</Text><View style={s.cardFoot}><Text style={s.tag}>{x.specialty}</Text><Pressable onPress={()=>toggleCommunity(x.id)} style={[s.smallButton,yes&&s.secondaryButton]}><Text style={[s.smallButtonText,yes&&s.secondaryButtonText]}>{yes?(ar?"مغادرة":"Leave"):(ar?"انضمام":"Join")}</Text></Pressable></View></View>})}
     </>}
 
-    {tab==="profile"&&<>
+    {!viewedProfile&&tab==="profile"&&<>
       {!profile?<ActivityIndicator color={C.blue}/>:<>
         <View style={s.profileCard}>
           <Pressable onPress={chooseAvatar} disabled={busy} style={s.avatarPress}>
@@ -218,13 +289,13 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
           <Pressable onPress={chooseAvatar}><Text style={s.changePhoto}>{ar?"تغيير الصورة الشخصية":"Change profile photo"}</Text></Pressable>
           <View style={{flexDirection:"row",alignItems:"center",gap:6}}><Text style={s.profileName}>{profile.display_name}</Text>{profile.is_verified&&<MaterialCommunityIcons name="check-decagram" size={20} color={profile.account_type==="company"?"#89939D":C.blue}/>}</View>
           <Text style={s.detail}>@{profile.username}</Text>
-          <View style={s.statsRow}><View style={s.stat}><Text style={s.statNum}>{postCount}</Text><Text style={s.statLabel}>{ar?"المنشورات":"Posts"}</Text></View><View style={s.stat}><Text style={s.statNum}>{followersCount}</Text><Text style={s.statLabel}>{ar?"المتابعون":"Followers"}</Text></View><View style={s.stat}><Text style={s.statNum}>{followingCount}</Text><Text style={s.statLabel}>{ar?"يتابع":"Following"}</Text></View></View>
-          <Text style={s.detail}>{profile.account_type==="company"?(ar?"حساب شركة":"Company account"):(ar?"حساب شخصي":"Personal account")}</Text>
+          <View style={s.statsRow}><View style={s.stat}><Text style={s.statNum}>{postCount}</Text><Text style={s.statLabel}>{ar?"المنشورات":"Posts"}</Text></View><Pressable onPress={()=>openPeopleList("followers")} style={s.stat}><Text style={s.statNum}>{followersCount}</Text><Text style={s.statLabel}>{ar?"المتابعون":"Followers"}</Text></Pressable><Pressable onPress={()=>openPeopleList("following")} style={s.stat}><Text style={s.statNum}>{followingCount}</Text><Text style={s.statLabel}>{ar?"يتابع":"Following"}</Text></Pressable></View>
+          <Text style={s.detail}>{accountMode==="business"?(ar?"حساب أعمال":"Business account"):accountMode==="company"?(ar?"حساب شركة":"Company account"):(ar?"حساب شخصي":"Personal account")}</Text>
           <Text style={s.bio}>{profile.bio||""}</Text>
           <View style={s.tags}>{(profile.interests||[]).map(x=><Text key={x} style={s.tag}>{x}</Text>)}</View>
         </View>
         <Button label={edit?(ar?"إلغاء التعديل":"Cancel edit"):(ar?"تعديل الملف الشخصي":"Edit profile")} onPress={()=>setEdit(!edit)} disabled={busy}/>
-        {edit&&<View style={s.card}><Field label={ar?"الاسم":"Display name"} value={displayName} onChange={setDisplayName}/><Field label={ar?"اسم المستخدم":"Username"} value={username} onChange={setUsername}/><Field label={ar?"نبذة":"Bio"} value={bio} onChange={setBio} multiline/><Field label={ar?"التخصص":"Specialty"} value={specialty} onChange={setSpecialty}/><Text style={s.label}>{ar?"خصوصية الحساب":"Account privacy"}</Text><View style={s.row}><Pressable onPress={()=>setPrivateAccount(false)} style={[s.choice,!privateAccount&&s.choiceOn]}><Text style={s.choiceText}>{ar?"عام":"Public"}</Text></Pressable><Pressable onPress={()=>setPrivateAccount(true)} style={[s.choice,privateAccount&&s.choiceOn]}><Text style={s.choiceText}>{ar?"خاص":"Private"}</Text></Pressable></View><Button label={ar?"حفظ التعديلات":"Save changes"} onPress={saveProfile}/></View>}
+        {edit&&<View style={s.card}><Field label={ar?"الاسم":"Display name"} value={displayName} onChange={setDisplayName}/><Field label={ar?"اسم المستخدم":"Username"} value={username} onChange={setUsername}/><Field label={ar?"نبذة":"Bio"} value={bio} onChange={setBio} multiline/><Field label={ar?"التخصص":"Specialty"} value={specialty} onChange={setSpecialty}/><Text style={s.label}>{ar?"نوع الحساب":"Account type"}</Text><View style={s.row}>{(["personal","business","company"] as const).map(v=><Pressable key={v} onPress={()=>setAccountMode(v)} style={[s.choice,accountMode===v&&s.choiceOn]}><Text style={s.choiceText}>{v==="personal"?(ar?"شخصي":"Personal"):v==="business"?(ar?"أعمال":"Business"):(ar?"شركة":"Company")}</Text></Pressable>)}</View><Text style={s.label}>{ar?"خصوصية الحساب":"Account privacy"}</Text><View style={s.row}><Pressable onPress={()=>setPrivateAccount(false)} style={[s.choice,!privateAccount&&s.choiceOn]}><Text style={s.choiceText}>{ar?"عام":"Public"}</Text></Pressable><Pressable onPress={()=>setPrivateAccount(true)} style={[s.choice,privateAccount&&s.choiceOn]}><Text style={s.choiceText}>{ar?"خاص":"Private"}</Text></Pressable></View><Pressable onPress={()=>setHideFollowers(!hideFollowers)} style={s.settingRow}><Text style={s.detail}>{ar?"إخفاء قائمة المتابعين":"Hide followers list"}</Text><Text style={s.cardTitle}>{hideFollowers?"●":"○"}</Text></Pressable><Button label={ar?"حفظ التعديلات":"Save changes"} onPress={saveProfile}/></View>}
         <View style={s.card}><View style={s.cardFoot}><Text style={s.cardTitle}>{ar?"التوثيق":"Verification"}</Text><MaterialCommunityIcons name="check-decagram" size={24} color={profile.account_type==="company"?"#89939D":C.blue}/></View><Text style={s.detail}>{ar?"فعّل الشارة الزرقاء للحساب الشخصي أو الفضية لحساب الشركة. يمكنك تشغيلها أو إيقافها مباشرة.":"Enable the blue personal or silver company badge. Toggle it whenever you like."}</Text><View style={s.verifyRow}><View style={{flexDirection:"row",alignItems:"center",gap:7}}><MaterialCommunityIcons name="check-decagram" size={22} color={profile.account_type==="company"?"#89939D":C.blue}/><Text style={s.verifyText}>{profile.account_type==="company"?(ar?"شارة شركة فضية":"Silver company badge"):(ar?"شارة شخصية زرقاء":"Blue personal badge")}</Text></View><Pressable onPress={toggleVerified} disabled={busy} style={[s.toggle,profile.is_verified&&s.toggleOn]}><View style={[s.toggleKnob,profile.is_verified&&s.toggleKnobOn]}/></Pressable></View><Text style={s.status}>{profile.is_verified?(ar?"التوثيق مفعّل":"Verification enabled"):(ar?"التوثيق متوقف":"Verification off")}</Text></View>
         <Pressable style={s.signout} onPress={async()=>{await supabase?.auth.signOut();}}><Text style={s.signoutText}>{ar?"تسجيل الخروج":"Sign out"}</Text></Pressable>
       </>}
