@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { supabase } from "./lib/supabase";
+import { requestAuthMode } from "./AuthGate";
 
 type Props = { tab: string; isArabic: boolean; onBackHome: () => void; onOpenMessages: () => void };
 type Profile = { id:string; account_type:"personal"|"company"; account_mode:"personal"|"business"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; hide_followers:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null; avatar_url:string|null; cover_url:string|null; is_verified:boolean };
@@ -49,6 +50,10 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
   const [viewedProfile,setViewedProfile]=useState<any|null>(null);
   const [viewedPosts,setViewedPosts]=useState<any[]>([]);
   const [viewedStats,setViewedStats]=useState({posts:0,followers:0,following:0});
+  const [settingsSection,setSettingsSection]=useState<string|null>(null);
+  const [settingsEmail,setSettingsEmail]=useState("");
+  const [settingsPrivate,setSettingsPrivate]=useState(false);
+  const [settingsHideFollowers,setSettingsHideFollowers]=useState(false);
 
 
   const loadProfile=useCallback(async()=>{
@@ -119,7 +124,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     setConversations(mapped);
   },[]);
 
-  useEffect(()=>{if(tab==="profile")loadProfile();if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
+  useEffect(()=>{if(tab==="profile"||tab==="settings")loadProfile();if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
 
   const showNotice=(v:string)=>setNotice(v);
   const saveProfile=async()=>{
@@ -283,7 +288,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     finally{setBusy(false);}
   };
 
-  const title=tab==="explore"?(ar?"استكشف المجتمع":"Explore"):tab==="groups"?(ar?"المجتمعات التقنية":"Communities"):tab==="messages"?(ar?"الرسائل":"Messages"):(ar?"ملفي الشخصي":"My profile");
+  const title=tab==="settings"?(ar?"الإعدادات والخصوصية":"Settings and privacy"):tab==="explore"?(ar?"استكشف المجتمع":"Explore"):tab==="groups"?(ar?"المجتمعات التقنية":"Communities"):tab==="messages"?(ar?"الرسائل":"Messages"):(ar?"ملفي الشخصي":"My profile");
   const Field=({label,value,onChange,placeholder,multiline=false}:any)=><View style={{marginTop:12}}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor="#9AA8B2" multiline={multiline} style={[s.input,multiline&&{height:90,textAlignVertical:"top",paddingTop:12},ar&&s.rtl]}/></View>;
   const Button=({label,onPress,disabled=false}:any)=><Pressable disabled={disabled||busy} onPress={onPress} style={[s.button,(disabled||busy)&&{opacity:.55}]}><Text style={s.buttonText}>{busy? (ar?"جارٍ التنفيذ...":"Please wait..."):label}</Text></Pressable>;
 
@@ -291,6 +296,34 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     <Text style={s.eyebrow}>{ar?"مساحتك التقنية":"YOUR TECH SPACE"}</Text>
     <Text style={[s.title,ar&&s.rtl]}>{title}</Text>
     {!!notice&&<View style={s.notice}><Text style={[s.noticeText,ar&&s.rtl]}>{notice}</Text><Pressable onPress={()=>setNotice("")}><MaterialCommunityIcons name="close" size={17} color={C.muted}/></Pressable></View>}
+
+    {tab==="settings"&&<>
+      {!settingsSection?<>
+        <View style={s.card}><Text style={s.cardTitle}>{ar?"حسابك":"Your account"}</Text><Text style={s.detail}>{profile?.display_name||settingsEmail}</Text><Text style={s.detail}>@{profile?.username||""}</Text>
+          <Pressable style={s.settingRow} onPress={()=>setSettingsSection("account")}><Text style={s.detail}>{ar?"معلومات الحساب":"Account information"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
+          <Pressable style={s.settingRow} onPress={()=>setSettingsSection("security")}><Text style={s.detail}>{ar?"الأمان والوصول إلى الحساب":"Security and account access"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
+        </View>
+        <View style={s.card}><Text style={s.cardTitle}>{ar?"الخصوصية والأمان":"Privacy and safety"}</Text>
+          <Pressable style={s.settingRow} onPress={()=>setSettingsSection("privacy")}><Text style={s.detail}>{ar?"خصوصية الحساب والمتابعون":"Account privacy and followers"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
+          <Pressable style={s.settingRow} onPress={()=>setSettingsSection("notifications")}><Text style={s.detail}>{ar?"الإشعارات":"Notifications"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
+          <Pressable style={s.settingRow} onPress={()=>setSettingsSection("display")}><Text style={s.detail}>{ar?"إمكانية الوصول والعرض واللغات":"Accessibility, display and languages"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
+          <Pressable style={s.settingRow} onPress={()=>setSettingsSection("personalization")}><Text style={s.detail}>{ar?"الخصوصية والتخصيص":"Privacy and personalization"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
+        </View>
+        <View style={s.card}><Text style={s.cardTitle}>{ar?"تبديل الحساب":"Switch account"}</Text><Text style={s.detail}>{ar?"يمكنك الانتقال إلى تسجيل الدخول أو إنشاء حساب جديد. سيتم تسجيل خروج الحساب الحالي أولاً.":"Choose sign in or create a new account. The current account will be signed out first."}</Text>
+          <Button label={ar?"تسجيل الدخول إلى حساب حالي":"Sign in to an existing account"} onPress={()=>requestAuthMode("login")}/>
+          <Pressable onPress={()=>requestAuthMode("signup")} style={[s.button,{backgroundColor:C.white,borderWidth:1,borderColor:C.blue}]}><Text style={{color:C.blue,fontSize:12,fontWeight:"900"}}>{ar?"إنشاء حساب جديد":"Create a new account"}</Text></Pressable>
+        </View>
+      </>:<View style={s.card}>
+        <Pressable onPress={()=>setSettingsSection(null)} style={s.back}><MaterialCommunityIcons name="arrow-left" size={18} color={C.blue}/><Text style={s.backText}>{ar?"كل الإعدادات":"All settings"}</Text></Pressable>
+        <Text style={s.cardTitle}>{settingsSection==="account"?(ar?"معلومات الحساب":"Account information"):settingsSection==="security"?(ar?"الأمان والوصول":"Security and access"):settingsSection==="privacy"?(ar?"الخصوصية والأمان":"Privacy and safety"):settingsSection==="notifications"?(ar?"الإشعارات":"Notifications"):settingsSection==="display"?(ar?"العرض واللغات":"Display and languages"):(ar?"الخصوصية والتخصيص":"Privacy and personalization")}</Text>
+        {settingsSection==="account"&&<><Text style={s.detail}>{ar?"البريد الإلكتروني":"Email"}: {settingsEmail}</Text><Text style={s.detail}>{ar?"اسم المستخدم":"Username"}: @{profile?.username||""}</Text></>}
+        {settingsSection==="security"&&<><Text style={s.detail}>{ar?"أرسل رابطاً آمناً إلى بريدك لتغيير كلمة المرور.":"Send a secure password-reset link to your email."}</Text><Button label={ar?"إرسال رابط تغيير كلمة المرور":"Send password reset link"} onPress={async()=>{if(!supabase||!settingsEmail){showNotice(ar?"تعذر تحديد البريد الإلكتروني.":"Email unavailable.");return;}setBusy(true);const {error}=await supabase.auth.resetPasswordForEmail(settingsEmail,{redirectTo:"techcommunity://reset-password"});setBusy(false);showNotice(error?(ar?"تعذر إرسال الرابط: ":"Could not send link: ")+error.message:(ar?"إذا كان البريد مسجلاً فسيصلك رابط الاستعادة.":"If registered, a reset link will arrive by email."));}}/></>}
+        {settingsSection==="privacy"&&<><Pressable style={s.settingRow} onPress={async()=>{const next=!settingsPrivate;setSettingsPrivate(next);const {error}=await supabase!.from("profiles").update({is_private:next}).eq("id",userId);if(error){setSettingsPrivate(!next);showNotice(error.message);}else{setPrivateAccount(next);showNotice(ar?"تم تحديث خصوصية الحساب.":"Privacy updated.");}}}><Text style={s.detail}>{ar?"الحساب الخاص":"Private account"}</Text><Text style={s.cardTitle}>{settingsPrivate?"●":"○"}</Text></Pressable><Pressable style={s.settingRow} onPress={async()=>{const next=!settingsHideFollowers;setSettingsHideFollowers(next);const {error}=await supabase!.from("profiles").update({hide_followers:next}).eq("id",userId);if(error){setSettingsHideFollowers(!next);showNotice(error.message);}else{setHideFollowers(next);showNotice(ar?"تم تحديث إعداد المتابعين.":"Followers setting updated.");}}}><Text style={s.detail}>{ar?"إخفاء قائمة المتابعين":"Hide followers list"}</Text><Text style={s.cardTitle}>{settingsHideFollowers?"●":"○"}</Text></Pressable></>}
+        {settingsSection==="notifications"&&<Text style={s.detail}>{ar?"إعدادات الإشعارات الفعلية تحتاج ربط خدمة إشعارات للجهاز. لن نعرض مفاتيح شكلية قبل ربطها.":"Device notifications need a push-notification service. No nonfunctional switches are shown."}</Text>}
+        {settingsSection==="display"&&<Text style={s.detail}>{ar?"يمكنك تغيير اللغة من زر اللغة أعلى التطبيق.":"Change the language using the language control in the app header."}</Text>}
+        {settingsSection==="personalization"&&<Text style={s.detail}>{ar?"خيارات التخصيص المتقدمة ستظهر بعد ربط مصادر البيانات اللازمة.":"Advanced personalization options will appear once their data sources are connected."}</Text>}
+      </View>}
+    </>}
 
     {showPeopleList&&<View style={s.card}>
       <Pressable onPress={()=>setShowPeopleList(null)} style={s.back}><MaterialCommunityIcons name="arrow-left" size={18} color={C.blue}/><Text style={s.backText}>{ar?"رجوع للملف الشخصي":"Back to profile"}</Text></Pressable>
