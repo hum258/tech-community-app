@@ -15,6 +15,7 @@ as $$
     (select count(*) from public.post_shares h where h.post_id=p.id)
   from public.posts p
   where p.id=any(post_ids)
+    and auth.uid() is not null
 $$;
 
 revoke all on function public.get_post_metrics(uuid[]) from public,anon;
