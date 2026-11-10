@@ -13,7 +13,7 @@ import { supabase } from "./src/lib/supabase";
 
 type Post = {
   id: string | number; authorId?: string; hideLikeCount?: boolean; name: string; role: string; time: string; category: string;
-  title: string; body: string; tags: string[]; likes: number; comments: number; views?:number; reposts?:number; savesCount?:number;
+  title: string; body: string; tags: string[]; likes: number; comments: number; views?:number; reposts?:number; savesCount?:number; shares?:number;
   icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; imageUrl?: string | null; avatarUrl?: string | null; isVerified?: boolean; accountType?: "personal" | "company";
 };
 
@@ -71,7 +71,7 @@ function CommunityApp() {
           const notMine=rows.filter(p=>p.authorId!==session.user.id).map(p=>({post_id:p.id,user_id:session.user.id}));
           if(notMine.length) await client.from("post_views").upsert(notMine,{onConflict:"post_id,user_id,viewed_on",ignoreDuplicates:true});
           const {data:metrics}=await client.rpc("get_post_metrics",{post_ids:ids});
-          setPosts(old=>old.map(p=>{const m=(metrics||[]).find((x:any)=>x.post_id===p.id);return {...p,likes:(likes||[]).filter((x:any)=>x.post_id===p.id).length,comments:(comments||[]).filter((x:any)=>x.post_id===p.id).length,views:Number(m?.views||0),reposts:Number(m?.reposts||0),savesCount:Number(m?.saves||0)};}));
+          setPosts(old=>old.map(p=>{const m=(metrics||[]).find((x:any)=>x.post_id===p.id);return {...p,likes:(likes||[]).filter((x:any)=>x.post_id===p.id).length,comments:(comments||[]).filter((x:any)=>x.post_id===p.id).length,views:Number(m?.views||0),reposts:Number(m?.reposts||0),savesCount:Number(m?.saves||0),shares:Number(m?.shares||0)};}));
           setLiked((mine||[]).map((x:any)=>x.post_id)); setSaved((saves||[]).filter((x:any)=>x.user_id===session.user.id).map((x:any)=>x.post_id)); setReposted((myReposts||[]).map((x:any)=>x.post_id));
         }
         setFeedNotice("");
@@ -160,6 +160,11 @@ function CommunityApp() {
   const reportPost=async(id:string|number)=>{
     if(!supabase||!currentUserId||typeof id!=="string")return;
     Alert.alert("الإبلاغ عن المنشور","اختر سبب الإبلاغ",["محتوى مزعج","معلومات مضللة","إساءة أو مضايقة"].map(reason=>({text:reason,onPress:async()=>{const {error}=await supabase!.from("content_reports").insert({reporter_id:currentUserId,post_id:id,reason});setFeedNotice(error?error.message:"تم إرسال البلاغ للمراجعة.");}})).concat([{text:"إلغاء",style:"cancel"}] as any));
+  };
+
+  const sharePost=async(post:Post)=>{
+    if(supabase&&currentUserId&&typeof post.id==="string")await supabase.from("post_shares").insert({post_id:post.id,user_id:currentUserId});
+    await Share.share({message:post.title+"\\n\\n"+post.body+"\\n\\n"+post.tags.map(tag=>"#"+tag).join(" ")});
   };
 
   const toggleSave = async (id:string | number) => {
@@ -326,7 +331,7 @@ function CommunityApp() {
                 <Pressable style={styles.xAction} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#D83F69":"#657786"}/><Text style={[styles.xActionText,isLiked&&styles.likedText]}>{post.hideLikeCount?"":post.likes||0}</Text></Pressable>
                 <Pressable style={styles.xAction} onPress={()=>{const opening=commentingPost!==post.id;setCommentingPost(opening?post.id:null);setCommentDraft("");if(opening&&typeof post.id==="string")loadPostComments(post.id);}}><MaterialCommunityIcons name="comment-outline" size={20} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.xActionText}>{post.comments||0}</Text></Pressable>
                 <Pressable style={styles.xAction} onPress={()=>toggleRepost(post.id)}><MaterialCommunityIcons name="repeat" size={20} color={reposted.includes(String(post.id))?"#168A62":"#657786"}/><Text style={styles.xActionText}>{post.reposts||0}</Text></Pressable>
-                <Pressable style={styles.xAction} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={20} color="#657786"/></Pressable>
+                <Pressable style={styles.xAction} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={20} color="#657786"/><Text style={styles.xActionText}>{post.shares||0}</Text></Pressable>
                 <Pressable style={styles.xAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#1D9BF0":"#657786"}/><Text style={styles.xActionText}>{post.savesCount||0}</Text></Pressable>
                 <Pressable style={styles.xAction} onPress={()=>Alert.alert(isArabic?"تحليلات المنشور":"Post analytics",[(isArabic?"المشاهدات: ":"Views: ")+(post.views||0),(isArabic?"الإعجابات: ":"Likes: ")+(post.likes||0),(isArabic?"التعليقات: ":"Comments: ")+(post.comments||0),(isArabic?"إعادات النشر: ":"Reposts: ")+(post.reposts||0),(isArabic?"مرات الحفظ: ":"Saves: ")+(post.savesCount||0)].join("\\n"))}><MaterialCommunityIcons name="chart-box-outline" size={20} color="#657786"/><Text style={styles.xActionText}>{post.views||0}</Text></Pressable>
               </View>
