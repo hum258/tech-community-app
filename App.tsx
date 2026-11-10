@@ -78,7 +78,7 @@ function CommunityApp() {
   const recordVisiblePostViews = async (scrollY:number,viewportHeight:number) => {
     if(!supabase||!currentUserId||viewportHeight<=0)return;
     const visibleIds=Object.entries(postLayouts.current)
-      .filter(([id,layout])=>layout.authorId!==currentUserId&&layout.y<scrollY+viewportHeight&&layout.y+layout.height>scrollY)
+      .filter(([,layout])=>layout.authorId!==currentUserId&&layout.y<scrollY+viewportHeight&&layout.y+layout.height>scrollY)
       .map(([id])=>id)
       .filter(id=>!viewedThisSession.current.has(currentUserId+":"+id));
     if(!visibleIds.length)return;
@@ -153,6 +153,13 @@ function CommunityApp() {
     const queryMatch = !q || [post.title, post.body, post.name, ...post.tags].join(" ").toLowerCase().includes(q);
     return categoryMatch && queryMatch;
   }), [posts, activeCategory, query, blockedUserIds]);
+
+  useEffect(() => {
+    const activeIds = new Set(visiblePosts.map(post => String(post.id)));
+    Object.keys(postLayouts.current).forEach(id => {
+      if (!activeIds.has(id)) delete postLayouts.current[id];
+    });
+  }, [visiblePosts]);
 
   const labels = isArabic
     ? { home:"الرئيسية", explore:"استكشف", groups:"المجتمعات", messages:"الرسائل", profile:"حسابي", greeting:"مساحة تجمع العقول التقنية", subtitle:"تعلّم، شارك، وابنِ شيئاً مميزاً.", search:"ابحث عن أشخاص أو مشاريع أو مواضيع...", feed:"آخر النقاشات", all:"لك", popular:"الأكثر صلة", compose:"اكتب منشوراً تقنياً...", publish:"نشر", cancel:"إلغاء", empty:"لا توجد منشورات مطابقة حالياً", welcome:"مرحباً بك في مجتمع التقنية", join:"مساحتك للتعلّم والتواصل وبناء المشاريع", login:"المتابعة باستخدام Google", personal:"حساب شخصي", company:"حساب شركة", demo:"معاينة الواجهة — البيانات تجريبية" }
