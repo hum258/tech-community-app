@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as Updates from "expo-updates";
 import { supabase } from "./lib/supabase";
 import { requestAuthMode } from "./AuthGate";
 import FeatureHub from "./FeatureHub";
@@ -92,6 +93,7 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
   const [followedTopics,setFollowedTopics]=useState<string[]>([]);
   const [fontScale,setFontScale]=useState(1);
   const [trendingRows,setTrendingRows]=useState<any[]>([]);
+  const [checkingUpdates,setCheckingUpdates]=useState(false);
 
 
   const loadProfile=useCallback(async()=>{
@@ -172,6 +174,21 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
   useEffect(()=>{if(tab==="profile"||tab==="settings"||tab==="features")loadProfile();if(tab==="explore"){loadTopics();loadTrending();}if(tab==="groups")loadGroups();if(tab==="explore"){loadGroups();loadPeople();}if(tab==="messages")loadMessages();},[tab,loadProfile,loadGroups,loadMessages,loadPeople]);
 
   const showNotice=(v:string)=>setNotice(v);
+  const checkForAppUpdate=async()=>{
+    if(!Updates.isEnabled){showNotice(ar?"التحديثات غير مفعّلة في هذه النسخة. ثبّت أحدث إصدار من التطبيق أولاً.":"Updates are not enabled in this build. Install the latest app build first.");return;}
+    setCheckingUpdates(true);
+    try{
+      const result=await Updates.checkForUpdateAsync();
+      if(!result.isAvailable){showNotice(ar?"أنت تستخدم أحدث إصدار متاح.":"You're already on the latest available version.");return;}
+      await Updates.fetchUpdateAsync();
+      Alert.alert(ar?"تحديث جاهز":"Update ready",ar?"تم تنزيل التحديث. أعد تشغيل التطبيق لتطبيقه الآن.":"The update has been downloaded. Restart the app to apply it.",[
+        {text:ar?"لاحقاً":"Later",style:"cancel"},
+        {text:ar?"إعادة التشغيل الآن":"Restart now",onPress:()=>{void Updates.reloadAsync();}}
+      ]);
+    }catch(error:any){
+      showNotice((ar?"تعذر التحقق من التحديث: ":"Could not check for updates: ")+(error?.message||""));
+    }finally{setCheckingUpdates(false);}
+  };
   const showVerificationInfo=(companyName?:string|null)=>Alert.alert(ar?"شارة التوثيق":"Verification badge",ar?`تم التوثيق من شركة المجتمع التقني.\\nاسم التطبيق: المجتمع التقني – Tech Community${companyName?"\\nالجهة: "+companyName:""}`:`Verified by Tech Community.\\nApp: Tech Community${companyName?"\\nOrganization: "+companyName:""}`);
   const saveProfile=async()=>{
     if(!supabase||!userId||!displayName.trim()||!username.trim()){showNotice(ar?"الاسم واسم المستخدم مطلوبان.":"Name and username are required.");return;}
@@ -525,6 +542,11 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
           <Pressable style={[s.settingRow,isDark&&{borderBottomColor:"#34495A"}]} onPress={()=>{setSettingsSection("notifications");loadNotifications();}}><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{ar?"الإشعارات":"Notifications"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
           <Pressable style={[s.settingRow,isDark&&{borderBottomColor:"#34495A"}]} onPress={()=>setSettingsSection("display")}><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{ar?"إمكانية الوصول والعرض واللغات":"Accessibility, display and languages"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
           <Pressable style={[s.settingRow,isDark&&{borderBottomColor:"#34495A"}]} onPress={()=>setSettingsSection("personalization")}><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{ar?"الخصوصية والتخصيص":"Privacy and personalization"}</Text><MaterialCommunityIcons name="chevron-left" size={20} color={C.muted}/></Pressable>
+        </View>
+        <View style={[s.card,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}>
+          <Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{ar?"تحديثات التطبيق":"App updates"}</Text>
+          <Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{ar?"تحقق من وجود إصدار جديد ونزّله مباشرة داخل التطبيق، دون تنزيل ملف APK يدوياً للتحديثات المتوافقة.":"Check for a new version and download compatible updates inside the app without manually installing an APK."}</Text>
+          <Button label={checkingUpdates?(ar?"جارٍ التحقق...":"Checking..."):(ar?"التحقق من وجود تحديث":"Check for updates")} onPress={checkForAppUpdate} disabled={checkingUpdates}/>
         </View>
         <View style={[s.card,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}><Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{ar?"تبديل الحساب":"Switch account"}</Text><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{ar?"يمكنك الانتقال إلى تسجيل الدخول أو إنشاء حساب جديد. سيتم تسجيل خروج الحساب الحالي أولاً.":"Choose sign in or create a new account. The current account will be signed out first."}</Text>
           <Button label={ar?"تسجيل الدخول إلى حساب حالي":"Sign in to an existing account"} onPress={()=>requestAuthMode("login")}/>
