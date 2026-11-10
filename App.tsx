@@ -86,7 +86,8 @@ function CommunityApp() {
     { key:"explore", icon:"compass-outline" as const, label:labels.explore },
     { key:"groups", icon:"account-group-outline" as const, label:labels.groups },
     { key:"messages", icon:"message-text-outline" as const, label:labels.messages },
-    { key:"profile", icon:"account-circle-outline" as const, label:labels.profile }
+    { key:"profile", icon:"account-circle-outline" as const, label:labels.profile },
+    { key:"settings", icon:"cog-outline" as const, label:isArabic?"الإعدادات":"Settings" }
   ];
 
   const loadPostComments = async (postId:string) => {
