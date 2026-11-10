@@ -12,7 +12,7 @@ import * as ImagePicker from "expo-image-picker";
 import { supabase } from "./src/lib/supabase";
 
 type Post = {
-  id: string | number; name: string; role: string; time: string; category: string;
+  id: string | number; authorId?: string; hideLikeCount?: boolean; name: string; role: string; time: string; category: string;
   title: string; body: string; tags: string[]; likes: number; comments: number;
   icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; imageUrl?: string | null; avatarUrl?: string | null; isVerified?: boolean; accountType?: "personal" | "company";
 };
@@ -45,10 +45,10 @@ function CommunityApp() {
       if (!alive) return;
       setCurrentUserId(session?.user.id ?? null);
       if (!session) return;
-      const { data, error } = await client.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,profiles(display_name,specialty,account_type,avatar_url,is_verified)").order("created_at", { ascending: false }).limit(50);
+      const { data, error } = await client.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,hide_like_count,profiles(display_name,specialty,account_type,avatar_url,is_verified)").order("created_at", { ascending: false }).limit(50);
       if (error) { setFeedNotice("تعذر تحميل المنشورات من قاعدة البيانات. تأكد من تشغيل ترحيل 0003."); return; }
       if (data && alive) {
-        const rows: Post[] = data.map((p: any) => ({ id:p.id, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], imageUrl:p.image_url, avatarUrl:p.profiles?.avatar_url, isVerified:!!p.profiles?.is_verified, accountType:p.profiles?.account_type, likes:0, comments:0, icon:"account-outline", color:"#1D9BF0" }));
+        const rows: Post[] = data.map((p: any) => ({ id:p.id, authorId:p.author_id, hideLikeCount:!!p.hide_like_count, name:p.profiles?.display_name || "عضو", role:p.profiles?.specialty || (p.profiles?.account_type === "company" ? "شركة" : "عضو المجتمع"), time:new Date(p.created_at).toLocaleString(), category:p.category, title:p.title, body:p.body, tags:p.tags || [], imageUrl:p.image_url, avatarUrl:p.profiles?.avatar_url, isVerified:!!p.profiles?.is_verified, accountType:p.profiles?.account_type, likes:0, comments:0, icon:"account-outline", color:"#1D9BF0" }));
         setPosts(rows);
         const ids=rows.map(p=>p.id);
         if(ids.length){
@@ -108,6 +108,18 @@ function CommunityApp() {
       setFeedNotice(result.error.message);
     }
   };
+  const toggleLikeVisibility = async (post:Post) => {
+    if(!supabase || !currentUserId || post.authorId!==currentUserId || typeof post.id!=="string"){
+      setFeedNotice("يمكنك إخفاء عدد الإعجابات في منشوراتك أنت فقط.");
+      return;
+    }
+    const next=!post.hideLikeCount;
+    const {error}=await supabase.from("posts").update({hide_like_count:next}).eq("id",post.id).eq("author_id",currentUserId);
+    if(error){setFeedNotice("تعذر تحديث إعداد الإعجابات: "+error.message);return;}
+    setPosts(old=>old.map(p=>p.id===post.id?{...p,hideLikeCount:next}:p));
+    setFeedNotice(next?"تم إخفاء عدد الإعجابات عن هذا المنشور.":"تم إظهار عدد الإعجابات.");
+  };
+
   const toggleSave = async (id:string | number) => {
     if (!supabase || !currentUserId || typeof id !== "string") { setFeedNotice("سجّل الدخول لحفظ المنشورات."); return; }
     const exists=saved.includes(id); setSaved(old=>exists?old.filter(x=>x!==id):[...old,id]);
@@ -131,8 +143,8 @@ function CommunityApp() {
     const {error}=await supabase.from("posts").insert({author_id:currentUserId,category:"عام",title:content.slice(0,80) || "صورة",body:content,tags:[],image_url:imageUrl});
     if(error){setFeedNotice("تعذر نشر المنشور: "+error.message);return;}
     setDraft(""); setSelectedImage(null); setComposerOpen(false);
-    const {data}=await supabase.from("posts").select("id,title,body,category,tags,image_url,created_at,profiles(display_name,specialty)").order("created_at",{ascending:false}).limit(50);
-    if(data)setPosts(data.map((p:any)=>({id:p.id,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],imageUrl:p.image_url,avatarUrl:p.profiles?.avatar_url,isVerified:!!p.profiles?.is_verified,accountType:p.profiles?.account_type,likes:0,comments:0,icon:"account-outline",color:"#1D9BF0"})));
+    const {data}=await supabase.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,hide_like_count,profiles(display_name,specialty,account_type,avatar_url,is_verified)").order("created_at",{ascending:false}).limit(50);
+    if(data)setPosts(data.map((p:any)=>({id:p.id,authorId:p.author_id,hideLikeCount:!!p.hide_like_count,name:p.profiles?.display_name||"عضو",role:p.profiles?.specialty||"عضو المجتمع",time:new Date(p.created_at).toLocaleString(),category:p.category,title:p.title,body:p.body,tags:p.tags||[],imageUrl:p.image_url,avatarUrl:p.profiles?.avatar_url,isVerified:!!p.profiles?.is_verified,accountType:p.profiles?.account_type,likes:0,comments:0,icon:"account-outline",color:"#1D9BF0"})));
     setFeedNotice("");
   };
 
@@ -227,7 +239,7 @@ function CommunityApp() {
                   <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text>{post.isVerified&&<MaterialCommunityIcons name="check-decagram" size={15} color={post.accountType==="company"?"#89939D":"#1D9BF0"}/>}</View>
                   <Text style={styles.authorRole}>{post.role} · {post.time}</Text>
                 </View>
-                <Pressable style={styles.moreButton}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#657786"/></Pressable>
+                <Pressable style={styles.moreButton} onPress={()=>toggleLikeVisibility(post)}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#657786"/></Pressable>
               </View>
               <View style={styles.postCategory}><Text style={styles.categoryText}>{post.category}</Text></View>
               <Text style={[styles.postTitle, isArabic && styles.rtl]}>{post.title}</Text>
@@ -235,7 +247,7 @@ function CommunityApp() {
               {post.imageUrl ? <Image source={{uri:post.imageUrl}} style={{width:"100%",height:230,borderRadius:14,marginTop:12}} resizeMode="cover"/> : null}<View style={styles.tags}>{post.tags.map(tag=><View key={tag} style={styles.tag}><Text style={styles.tagText}>#{tag}</Text></View>)}</View>
               <View style={styles.postDivider}/>
               <View style={styles.postActions}>
-                <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#657786"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{post.likes}</Text></Pressable>
+                <Pressable style={styles.action} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#F07891":"#657786"}/><Text style={[styles.actionText,isLiked&&styles.likedText]}>{post.hideLikeCount?(isArabic?"مخفية":"Hidden"):post.likes}</Text></Pressable>
                 <Pressable style={styles.action} onPress={()=>{const opening=commentingPost!==post.id;setCommentingPost(opening?post.id:null);setCommentDraft("");if(opening&&typeof post.id==="string")loadPostComments(post.id);}}><MaterialCommunityIcons name="comment-outline" size={19} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.actionText}>{post.comments}</Text></Pressable>
                 <Pressable style={styles.action} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={19} color="#657786"/><Text style={styles.actionText}>{isArabic?"مشاركة":"Share"}</Text></Pressable>
                 <Pressable style={styles.saveAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#1D9BF0":"#657786"}/></Pressable>
