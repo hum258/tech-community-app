@@ -7,7 +7,7 @@ import { requestAuthMode } from "./AuthGate";
 import FeatureHub from "./FeatureHub";
 
 type Props = { tab: string; isArabic: boolean; onBackHome: () => void; onOpenMessages: () => void };
-type Profile = { id:string; account_type:"personal"|"company"; account_mode:"personal"|"business"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; hide_followers:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null; avatar_url:string|null; cover_url:string|null; is_verified:boolean };
+type Profile = { id:string; account_type:"personal"|"company"; account_mode:"personal"|"business"|"company"; display_name:string; username:string; bio:string; specialty:string|null; is_private:boolean; hide_followers:boolean; interests:string[]; company_name:string|null; company_website:string|null; company_industry:string|null; verification_status:string; verified_at:string|null; avatar_url:string|null; cover_url:string|null; is_verified:boolean; points?:number };
 type Community = { id:string; name:string; description:string; specialty:string };
 type Conversation = { id:string; created_at:string; peerName:string; peerUsername:string };
 
@@ -72,7 +72,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
     if(!user)return;
     setUserId(user.id);
     setSettingsEmail(user.email||"");
-    const {data}=await supabase.from("profiles").select("id,account_type,account_mode,display_name,username,bio,specialty,is_private,hide_followers,interests,company_name,company_website,company_industry,verification_status,verified_at,avatar_url,cover_url,is_verified").eq("id",user.id).maybeSingle();
+    const {data}=await supabase.from("profiles").select("id,account_type,account_mode,display_name,username,bio,specialty,is_private,hide_followers,interests,company_name,company_website,company_industry,verification_status,verified_at,avatar_url,cover_url,is_verified,points").eq("id",user.id).maybeSingle();
     if(data){const p=data as Profile;setProfile(p);setDisplayName(p.display_name||"");setUsername(p.username||"");setBio(p.bio||"");setSpecialty(p.specialty||"");setPrivateAccount(!!p.is_private);setCoverUrl(p.cover_url||"");setAccountMode(p.account_mode||p.account_type||"personal");setHideFollowers(!!p.hide_followers);setSettingsPrivate(!!p.is_private);setSettingsHideFollowers(!!p.hide_followers);}
     const [posts,followers,following]=await Promise.all([
       supabase.from("posts").select("id",{count:"exact",head:true}).eq("author_id",user.id),
@@ -477,7 +477,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome,onOpenMessages}
           <View style={{flexDirection:"row",alignItems:"center",gap:6}}><Text style={s.profileName}>{profile.display_name}</Text>{profile.is_verified&&<MaterialCommunityIcons name="check-decagram" size={20} color={accountMode==="company"?"#89939D":C.blue}/>}</View>
           <Text style={s.detail}>@{profile.username}</Text>
           <View style={s.statsRow}><View style={s.stat}><Text style={s.statNum}>{postCount}</Text><Text style={s.statLabel}>{ar?"المنشورات":"Posts"}</Text></View><Pressable onPress={()=>openPeopleList("followers")} style={s.stat}><Text style={s.statNum}>{followersCount}</Text><Text style={s.statLabel}>{ar?"المتابعون":"Followers"}</Text></Pressable><Pressable onPress={()=>openPeopleList("following")} style={s.stat}><Text style={s.statNum}>{followingCount}</Text><Text style={s.statLabel}>{ar?"يتابع":"Following"}</Text></Pressable></View>
-          <Text style={s.detail}>{accountMode==="business"?(ar?"حساب أعمال":"Business account"):accountMode==="company"?(ar?"حساب شركة":"Company account"):(ar?"حساب شخصي":"Personal account")}</Text>
+          <Text style={s.detail}>{accountMode==="business"?(ar?"حساب أعمال":"Business account"):accountMode==="company"?(ar?"حساب شركة":"Company account"):(ar?"حساب شخصي":"Personal account")}</Text><View style={{marginTop:10,padding:12,borderRadius:12,backgroundColor:"#FFF7E6",flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}><View style={{flexDirection:"row",alignItems:"center",gap:7}}><MaterialCommunityIcons name="trophy-outline" size={20} color="#C28A24"/><Text style={{color:"#8C641A",fontWeight:"800"}}>{ar?"نقاط المساهمات":"Contribution points"}</Text></View><Text style={{color:"#8C641A",fontSize:17,fontWeight:"900"}}>{profile.points||0}</Text></View>
           <Text style={s.bio}>{profile.bio||""}</Text>
           <View style={s.tags}>{(profile.interests||[]).map(x=><Text key={x} style={s.tag}>{x}</Text>)}</View>
         </View>
