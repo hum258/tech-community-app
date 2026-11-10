@@ -148,8 +148,8 @@ function CommunityApp() {
       imageUrl = supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
     }
     const content = draft.trim();
-    const articleTitle=content.split("\
-")[0].slice(0,80) || "مقال جديد";\n    const {error}=await supabase.from("posts").insert({author_id:currentUserId,category:composerType==="article"?"مقال":"عام",title:composerType==="article"?articleTitle:(content.slice(0,80) || "صورة"),body:content,tags:[],image_url:imageUrl});
+    const articleTitle=content.split("\\n")[0].slice(0,80) || "مقال جديد";
+    const {error}=await supabase.from("posts").insert({author_id:currentUserId,category:composerType==="article"?"مقال":"عام",title:composerType==="article"?articleTitle:(content.slice(0,80) || "صورة"),body:content,tags:[],image_url:imageUrl});
     if(error){setFeedNotice("تعذر نشر المنشور: "+error.message);return;}
     setDraft(""); setSelectedImage(null); setComposerOpen(false); setComposerType("post");
     const {data}=await supabase.from("posts").select("id,title,body,category,tags,image_url,created_at,author_id,hide_like_count,profiles(display_name,specialty,account_type,avatar_url,is_verified)").order("created_at",{ascending:false}).limit(50);
