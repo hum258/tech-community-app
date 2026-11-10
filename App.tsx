@@ -157,7 +157,7 @@ function CommunityApp() {
     setReposted(old=>exists?old.filter(x=>x!==id):[...old,id]);
     setFeedNotice(exists?"تم إلغاء إعادة النشر.":"تمت إعادة نشر المنشور.");
   };
-  const reportPost=async(id:string|number)=>{
+  const deletePost=async(post:Post)=>{\n    if(!supabase||!currentUserId||post.authorId!==currentUserId||typeof post.id!=="string")return;\n    Alert.alert("حذف المنشور","هل أنت متأكد من حذف هذا المنشور؟",[{text:"إلغاء",style:"cancel"},{text:"حذف",style:"destructive",onPress:async()=>{const {error}=await supabase!.from("posts").delete().eq("id",post.id).eq("author_id",currentUserId);if(error){setFeedNotice("تعذر حذف المنشور: "+error.message);return;}setPosts(old=>old.filter(p=>p.id!==post.id));setFeedNotice("تم حذف المنشور.");}}]);\n  };\n  const openPostMenu=(post:Post)=>{\n    const actions:any[]=[{text:"إبلاغ عن المنشور",onPress:()=>reportPost(post.id)}];\n    if(post.authorId===currentUserId){actions.unshift({text:post.hideLikeCount?"إظهار عدد الإعجابات":"إخفاء عدد الإعجابات",onPress:()=>toggleLikeVisibility(post)},{text:"حذف المنشور",style:"destructive",onPress:()=>deletePost(post)});}\n    actions.push({text:"إلغاء",style:"cancel"});Alert.alert("خيارات المنشور",undefined,actions);\n  };\n\n  const reportPost=async(id:string|number)=>{
     if(!supabase||!currentUserId||typeof id!=="string")return;
     Alert.alert("الإبلاغ عن المنشور","اختر سبب الإبلاغ",["محتوى مزعج","معلومات مضللة","إساءة أو مضايقة"].map(reason=>({text:reason,onPress:async()=>{const {error}=await supabase!.from("content_reports").insert({reporter_id:currentUserId,post_id:id,reason});setFeedNotice(error?error.message:"تم إرسال البلاغ للمراجعة.");}})).concat([{text:"إلغاء",style:"cancel"}] as any));
   };
@@ -317,10 +317,10 @@ function CommunityApp() {
               <View style={styles.postHeader}>
                 {post.avatarUrl ? <Image source={{uri:post.avatarUrl}} style={[styles.avatar,{overflow:"hidden"}]} /> : <View style={[styles.avatar,{backgroundColor:post.color+"22",borderColor:post.color+"66"}]}><MaterialCommunityIcons name={post.icon} size={23} color={post.color}/></View>}
                 <View style={styles.authorInfo}>
-                  <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text>{post.isVerified&&<MaterialCommunityIcons name="check-decagram" size={15} color={post.accountType==="company"?"#89939D":"#1D9BF0"}/>}</View>
+                  <View style={styles.nameLine}><Text style={styles.authorName}>{post.name}</Text>{post.isVerified&&<Pressable onPress={()=>Alert.alert("توثيق الحساب","تم التوثيق من شركة المجتمع التقني.\\nالمؤسسة: المجتمع التقني – Tech Community.")}><MaterialCommunityIcons name="check-decagram" size={15} color={post.accountType==="company"?"#89939D":"#1D9BF0"}/></Pressable>}</View>
                   <Text style={styles.authorRole}>{post.role} · {post.time}</Text>
                 </View>
-                <Pressable style={styles.moreButton} onPress={()=>toggleLikeVisibility(post)}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#657786"/></Pressable>
+                <Pressable style={styles.moreButton} onPress={()=>openPostMenu(post)}><MaterialCommunityIcons name="dots-horizontal" size={22} color="#657786"/></Pressable>
               </View>
               <View style={styles.postCategory}><Text style={styles.categoryText}>{post.category}</Text></View>
               <Text style={[styles.postTitle, isArabic && styles.rtl]}>{post.title}</Text>
