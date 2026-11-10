@@ -142,7 +142,7 @@ function CommunityApp() {
   };
   const reportPost=async(id:string|number)=>{
     if(!supabase||!currentUserId||typeof id!=="string")return;
-    Alert.alert("الإبلاغ عن المنشور","اختر سبب الإبلاغ",["محتوى مزعج","معلومات مضللة","إساءة أو مضايقة"].map(reason=>({text:reason,onPress:async()=>{const {error}=await supabase.from("content_reports").insert({reporter_id:currentUserId,post_id:id,reason});setFeedNotice(error?error.message:"تم إرسال البلاغ للمراجعة.");}})).concat([{text:"إلغاء",style:"cancel"}] as any));
+    Alert.alert("الإبلاغ عن المنشور","اختر سبب الإبلاغ",["محتوى مزعج","معلومات مضللة","إساءة أو مضايقة"].map(reason=>({text:reason,onPress:async()=>{const {error}=await supabase!.from("content_reports").insert({reporter_id:currentUserId,post_id:id,reason});setFeedNotice(error?error.message:"تم إرسال البلاغ للمراجعة.");}})).concat([{text:"إلغاء",style:"cancel"}] as any));
   };
 
   const toggleSave = async (id:string | number) => {
