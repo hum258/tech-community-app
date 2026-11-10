@@ -291,7 +291,7 @@ export default function SecondaryScreen({tab,isArabic,onBackHome}:Props) {
       </Pressable>)}
       {!people.length&&<Text style={s.empty}>{ar?"لا يوجد أشخاص مطابقون حالياً.":"No people found."}</Text>}
       <Text style={[s.section,ar&&s.rtl]}>{ar?"المجتمعات":"Communities"}</Text>
-      {communities.filter(x=>(x.name+" "+x.description+" "+x.specialty).toLowerCase().includes(query.toLowerCase())).map(x=><View key={x.id} style={s.card}><Text style={s.cardTitle}>{x.name}</Text><Text style={s.detail}>{x.description}</Text><Text style={s.tag}>{x.specialty}</Text></View>)}
+      {communities.filter(x=>(x.name+" "+x.description+" "+x.specialty).toLowerCase().includes(query.toLowerCase())).map(x=><View key={x.id} style={s.card}><Text style={s.cardTitle}>{x.name}</Text><Text style={s.detail}>{x.description}</Text><Text style={s.tag}>{x.specialty}</Text></Pressable>)
       <Button label={ar?"عرض المجتمعات":"View communities"} onPress={onBackHome}/>
     </>}
 
