@@ -56,18 +56,33 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     });
     const handleAuthUrl = async (url:string) => {
       try {
-        if (url.includes("code=")) {
-          await client.auth.exchangeCodeForSession(url);
+        const parsed = new URL(url);
+        const hash = new URLSearchParams(parsed.hash.replace(/^#/, ""));
+        const code = parsed.searchParams.get("code") || hash.get("code");
+        if (code) {
+          const { error } = await client.auth.exchangeCodeForSession(url);
+          if (error) throw error;
+          setRecoveryMode(true);
+          setNotice("");
           return;
         }
-        const parsed = new URL(url.replace("#", "?"));
-        const access_token = parsed.searchParams.get("access_token");
-        const refresh_token = parsed.searchParams.get("refresh_token");
-        if (access_token && refresh_token) await client.auth.setSession({access_token,refresh_token});
+        const access_token = parsed.searchParams.get("access_token") || hash.get("access_token");
+        const refresh_token = parsed.searchParams.get("refresh_token") || hash.get("refresh_token");
+        const type = parsed.searchParams.get("type") || hash.get("type");
+        if (access_token && refresh_token) {
+          const { error } = await client.auth.setSession({access_token,refresh_token});
+          if (error) throw error;
+          if (type === "recovery" || url.includes("reset-password")) {
+            setRecoveryMode(true);
+            setNotice("");
+          }
+        } else if (url.includes("reset-password")) {
+          setNotice("تعذر العثور على رمز الاستعادة. أعد طلب رابط جديد من شاشة تسجيل الدخول.");
+        }
       } catch (error:any) { setNotice("تعذر فتح رابط الاستعادة: "+(error?.message||"الرابط غير صالح أو منتهي.")); }
     };
-    Linking.getInitialURL().then(url=>{if(url?.startsWith("techcommunity://")) handleAuthUrl(url);});
-    const urlSubscription=Linking.addEventListener("url",({url})=>{if(url.startsWith("techcommunity://")) handleAuthUrl(url);});
+    Linking.getInitialURL().then(url=>{if(url?.startsWith("techcommunity://")) void handleAuthUrl(url);});
+    const urlSubscription=Linking.addEventListener("url",({url})=>{if(url.startsWith("techcommunity://")) void handleAuthUrl(url);});
     const { data: listener } = client.auth.onAuthStateChange((event, current) => {
       if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
       setSession(current);
@@ -153,8 +168,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   };
 
   const saveNewPassword = async () => {
-    if (!supabase || password.length < 10 || password !== confirmPassword) {
-      setNotice(password.length < 10 ? "كلمة المرور يجب أن تكون 10 خانات على الأقل." : "كلمتا المرور غير متطابقتين.");
+    if (!supabase || !strongPassword(password) || password !== confirmPassword) {
+      setNotice(!strongPassword(password) ? "كلمة المرور يجب أن تحتوي 10 خانات على الأقل وحرفاً كبيراً وصغيراً ورقماً ورمزاً." : "كلمتا المرور غير متطابقتين.");
       return;
     }
     setBusy(true);
