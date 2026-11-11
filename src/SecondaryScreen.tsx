@@ -79,6 +79,7 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
   const [editingMyPostBody,setEditingMyPostBody]=useState("");
   const [myPostMenuId,setMyPostMenuId]=useState<string|null>(null);
   const [viewedProfile,setViewedProfile]=useState<any|null>(null);
+  const [viewedCertifications,setViewedCertifications]=useState<Certification[]>([]);
   const [viewedPosts,setViewedPosts]=useState<any[]>([]);
   const [viewedLikedPostIds,setViewedLikedPostIds]=useState<string[]>([]);
   const [viewedSavedPostIds,setViewedSavedPostIds]=useState<string[]>([]);
@@ -320,6 +321,8 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
     setBusy(true);
     const {data,error}=await supabase.from("profiles").select("id,display_name,username,bio,specialty,avatar_url,cover_url,is_verified,account_type,account_mode,is_private,hide_followers").eq("id",id).maybeSingle();
     if(error||!data){setBusy(false);showNotice(ar?"تعذر فتح الحساب.":"Could not open profile.");return;}
+    const {data:certRows}=await supabase.from("profile_certifications").select("id,title,issuer,issued_at,image_url").eq("user_id",id).order("created_at",{ascending:false});
+    setViewedCertifications((certRows||[]) as Certification[]);
     const [postsResult,postCountResult,followersResult,followingResult]=await Promise.all([
       supabase.from("posts").select("id,title,body,image_url,created_at").eq("author_id",id).order("created_at",{ascending:false}).limit(50),
       supabase.from("posts").select("id",{count:"exact",head:true}).eq("author_id",id),
@@ -666,6 +669,7 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
         {viewedProfile.is_verified&&<Pressable onPress={()=>showVerificationInfo(viewedProfile.company_name)}><MaterialCommunityIcons name="check-decagram" size={20} color={viewedProfile.account_type==="company"?"#89939D":C.blue}/></Pressable>}
       </View>
       <Text style={[s.bio,isDark&&{color:"#C4D0DA"}]}>{viewedProfile.bio||""}</Text>
+      {!!viewedCertifications.length&&<View style={{marginTop:12}}><Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{ar?"الشهادات":"Certificates"}</Text>{viewedCertifications.map(c=><View key={c.id} style={{marginTop:10,padding:10,borderWidth:1,borderColor:C.line,borderRadius:12}}><Image source={{uri:c.image_url}} style={{width:"100%",height:190,borderRadius:9,resizeMode:"contain",backgroundColor:"#F5F8FA"}}/><Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{c.title}</Text>{!!c.issuer&&<Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{c.issuer}</Text>}</View>)}</View>}
       {!!viewedProfile.specialty&&<Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{viewedProfile.specialty}</Text>}
       <View style={s.statsRow}>
         <View style={s.stat}><Text style={[s.statNum,isDark&&{color:"#F2F6FA"}]}>{viewedStats.posts}</Text><Text style={s.statLabel}>{ar?"المنشورات":"Posts"}</Text></View>
