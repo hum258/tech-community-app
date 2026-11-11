@@ -666,7 +666,7 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
       <View style={{flexDirection:"row",alignItems:"center",gap:8,marginTop:10}}>
         {viewedProfile.avatar_url?<Image source={{uri:viewedProfile.avatar_url}} style={s.personAvatar}/>:<View style={s.personAvatarFallback}><MaterialCommunityIcons name="account" size={22} color={C.blue}/></View>}
         <View style={{flex:1}}><Text style={[s.profileName,isDark&&{color:"#F2F6FA"}]}>{viewedProfile.display_name}</Text><Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>@{viewedProfile.username}</Text></View>
-        {viewedProfile.is_verified&&<Pressable onPress={()=>showVerificationInfo(viewedProfile.company_name)}><MaterialCommunityIcons name="check-decagram" size={20} color={viewedProfile.account_type==="company"?"#89939D":C.blue}/></Pressable>}
+        {viewedProfile.is_verified&&<Pressable onPress={()=>showVerificationInfo(viewedProfile.company_name)}><MaterialCommunityIcons name="check-decagram" size={20} color={viewedProfile.account_mode==="company"?"#89939D":C.blue}/></Pressable>}
       </View>
       <Text style={[s.bio,isDark&&{color:"#C4D0DA"}]}>{viewedProfile.bio||""}</Text>
       {!!viewedCertifications.length&&<View style={{marginTop:12}}><Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{ar?"الشهادات":"Certificates"}</Text>{viewedCertifications.map(c=><View key={c.id} style={{marginTop:10,padding:10,borderWidth:1,borderColor:C.line,borderRadius:12}}><Image source={{uri:c.image_url}} style={{width:"100%",height:190,borderRadius:9,resizeMode:"contain",backgroundColor:"#F5F8FA"}}/><Text style={[s.cardTitle,isDark&&{color:"#F2F6FA"}]}>{c.title}</Text>{!!c.issuer&&<Text style={[s.detail,isDark&&{color:"#C4D0DA"}]}>{c.issuer}</Text>}</View>)}</View>}
