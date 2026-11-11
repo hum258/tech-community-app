@@ -225,7 +225,7 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
     setJoined(old=>isJoined?old.filter(x=>x!==id):[...old,id]);
   };
 
-  const isAdminAccount=profile?.username?.toLowerCase()==="h";
+  const isAdminAccount=profile?.id==="6f1e89e0-0ce4-4f70-b964-2a817fea3821";
 
   const addCertification=async()=>{
     if(!supabase||!userId||!newCertificationTitle.trim()){showNotice(ar?"اكتب اسم الشهادة أولاً.":"Enter the certificate title first.");return;}
