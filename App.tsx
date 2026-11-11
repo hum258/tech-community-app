@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { BackHandler } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image,
+  View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image, Modal,
   StatusBar, Share, Alert
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,6 +26,7 @@ function CommunityApp() {
   const [activeTab, setActiveTab] = useState("home");
   const [isDark, setIsDark] = useState(false);
   const [simpleMode, setSimpleMode] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
 
   useEffect(() => {
@@ -335,8 +336,36 @@ function CommunityApp() {
               <View style={styles.notificationDot} />
             </Pressable>
             <Pressable style={[styles.langButton,isDark&&{borderColor:"#34495A"}]} onPress={()=>setActiveTab("settings")} accessibilityRole="button" accessibilityLabel={isArabic?"الإعدادات":"Settings"}><MaterialCommunityIcons name="cog-outline" size={19} color={isDark?"#DCE6EF":"#536471"}/></Pressable>
+            <Pressable style={[styles.accountButton,isDark&&{backgroundColor:"#203344",borderColor:"#34495A"}]} onPress={()=>setAccountMenuOpen(true)} accessibilityRole="button" accessibilityLabel={isArabic?"قائمة الحساب":"Account menu"}><MaterialCommunityIcons name="account-circle-outline" size={25} color={isDark?"#DCE6EF":"#536471"}/></Pressable>
           </View>
         </View>
+
+        <Modal visible={accountMenuOpen} transparent animationType="fade" onRequestClose={()=>setAccountMenuOpen(false)}>
+          <Pressable style={styles.accountMenuBackdrop} onPress={()=>setAccountMenuOpen(false)}>
+            <Pressable style={[styles.accountMenuPanel,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]} onPress={()=>{}}>
+              <View style={styles.accountMenuHeader}>
+                <View style={[styles.accountMenuAvatar,isDark&&{backgroundColor:"#263D50"}]}><MaterialCommunityIcons name="account" size={27} color="#1D9BF0"/></View>
+                <View style={{flex:1}}><Text style={[styles.accountMenuTitle,isDark&&{color:"#F2F6FA"}]}>{isArabic?"حسابك":"Your account"}</Text><Text style={[styles.accountMenuSubtitle,isDark&&{color:"#AABAC8"}]}>{isArabic?"إدارة الحساب والتنقل داخل المجتمع":"Manage your account and navigate"}</Text></View>
+                <Pressable onPress={()=>setAccountMenuOpen(false)} hitSlop={10} style={styles.accountMenuClose}><MaterialCommunityIcons name="close" size={21} color={isDark?"#DCE6EF":"#536471"}/></Pressable>
+              </View>
+              <View style={[styles.accountMenuDivider,isDark&&{backgroundColor:"#34495A"}]}/>
+              {[
+                {key:"profile",icon:"account-outline",ar:"الملف الشخصي",en:"Profile"},
+                {key:"home",icon:"home-outline",ar:"الرئيسية",en:"Home"},
+                {key:"explore",icon:"compass-outline",ar:"استكشف",en:"Explore"},
+                {key:"assistant",icon:"robot-outline",ar:"نوفا – المساعد الذكي",en:"NOVA – AI assistant"},
+                {key:"groups",icon:"account-group-outline",ar:"المجتمعات",en:"Communities"},
+                {key:"messages",icon:"message-text-outline",ar:"الرسائل",en:"Messages"},
+                {key:"notifications",icon:"bell-outline",ar:"الإشعارات",en:"Notifications"},
+                {key:"settings",icon:"cog-outline",ar:"الإعدادات",en:"Settings"}
+              ].map(item=><Pressable key={item.key} style={styles.accountMenuRow} onPress={()=>{setAccountMenuOpen(false);setActiveTab(item.key);}}><MaterialCommunityIcons name={item.icon as any} size={20} color="#1D9BF0"/><Text style={[styles.accountMenuRowText,isDark&&{color:"#EAF2F8"}]}>{isArabic?item.ar:item.en}</Text><MaterialCommunityIcons name="chevron-left" size={18} color={isDark?"#8297A9":"#91A2B1"}/></Pressable>)}
+              <View style={[styles.accountMenuDivider,isDark&&{backgroundColor:"#34495A"}]}/>
+              <Pressable style={styles.accountMenuRow} onPress={()=>setIsDark(v=>!v)}><MaterialCommunityIcons name={isDark?"weather-sunny":"moon-waning-crescent"} size={20} color="#1D9BF0"/><Text style={[styles.accountMenuRowText,isDark&&{color:"#EAF2F8"}]}>{isArabic?(isDark?"الوضع الفاتح":"الوضع الداكن"):(isDark?"Light mode":"Dark mode")}</Text></Pressable>
+              <Pressable style={styles.accountMenuRow} onPress={()=>setSimpleMode(v=>!v)}><MaterialCommunityIcons name="tune-variant" size={20} color="#1D9BF0"/><Text style={[styles.accountMenuRowText,isDark&&{color:"#EAF2F8"}]}>{isArabic?(simpleMode?"إيقاف الوضع المبسط":"تفعيل الوضع المبسط"):(simpleMode?"Disable simple mode":"Enable simple mode")}</Text></Pressable>
+              <Pressable style={styles.accountMenuRow} onPress={()=>setLanguage(v=>v==="ar"?"en":"ar")}><MaterialCommunityIcons name="translate" size={20} color="#1D9BF0"/><Text style={[styles.accountMenuRowText,isDark&&{color:"#EAF2F8"}]}>{isArabic?"English":"العربية"}</Text></Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         <ScrollView style={[styles.scroll,isDark&&{backgroundColor:"#101820"}]} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} onLayout={e=>{const h=e.nativeEvent.layout.height;setFeedViewportHeight(h);void recordVisiblePostViews(feedScrollY,h);}} onScroll={e=>{const y=e.nativeEvent.contentOffset.y;const h=e.nativeEvent.layoutMeasurement.height;setFeedScrollY(y);setFeedViewportHeight(h);void recordVisiblePostViews(y,h);}} scrollEventThrottle={300}>
           {activeTab !== "home" ? <SecondaryScreen tab={activeTab==="notifications"?"settings":activeTab} isArabic={isArabic} isDark={isDark} simpleMode={simpleMode} initialSettingsSection={activeTab==="notifications"?"notifications":undefined} onToggleTheme={()=>setIsDark(v=>!v)} onToggleSimpleMode={()=>setSimpleMode(v=>!v)} onBackHome={() => setActiveTab("home")} onOpenMessages={() => setActiveTab("messages")} onOpenComposer={()=>{setActiveTab("home");setComposerType("post");setComposerOpen(true);}} /> : <>
@@ -485,6 +514,17 @@ const styles = StyleSheet.create({
   brand:{color:"#17202A",fontWeight:"900",fontSize:13,letterSpacing:1.3},
   brandSub:{color:"#6D8AA7",fontSize:8,letterSpacing:1.7,marginTop:3},
   topActions:{flexDirection:"row",alignItems:"center",gap:9},
+  accountButton:{width:38,height:38,borderRadius:12,borderWidth:1,borderColor:"#CFD9DE",backgroundColor:"#F5F8FA",alignItems:"center",justifyContent:"center"},
+  accountMenuBackdrop:{flex:1,backgroundColor:"rgba(5,15,25,0.42)",paddingTop:76,paddingHorizontal:12,alignItems:"flex-end"},
+  accountMenuPanel:{width:285,maxWidth:"92%",backgroundColor:"#FFFFFF",borderRadius:18,borderWidth:1,borderColor:"#E0E8EF",padding:13,elevation:12,shadowColor:"#000",shadowOpacity:0.18,shadowRadius:16},
+  accountMenuHeader:{flexDirection:"row",alignItems:"center",gap:10,paddingBottom:10},
+  accountMenuAvatar:{width:45,height:45,borderRadius:15,backgroundColor:"#E8F5FD",alignItems:"center",justifyContent:"center"},
+  accountMenuTitle:{fontSize:14,fontWeight:"900",color:"#17202A",textAlign:"left"},
+  accountMenuSubtitle:{fontSize:10,color:"#657786",marginTop:3,textAlign:"left"},
+  accountMenuClose:{width:30,height:30,alignItems:"center",justifyContent:"center"},
+  accountMenuDivider:{height:1,backgroundColor:"#E6ECF0",marginVertical:7},
+  accountMenuRow:{minHeight:43,flexDirection:"row",alignItems:"center",gap:11,paddingHorizontal:7,borderRadius:10},
+  accountMenuRowText:{flex:1,fontSize:12,fontWeight:"700",color:"#243746",textAlign:"left"},
   langButton:{height:35,minWidth:38,paddingHorizontal:8,borderRadius:11,borderWidth:1,borderColor:"#CFD9DE",alignItems:"center",justifyContent:"center"},
   langText:{color:"#B9D8ED",fontSize:12,fontWeight:"800"},
   iconButton:{width:37,height:37,borderRadius:12,backgroundColor:"#10243A",alignItems:"center",justifyContent:"center"},
