@@ -11,6 +11,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import SecondaryScreen from "./src/SecondaryScreen";
 import AuthGate from "./src/AuthGate";
 import * as ImagePicker from "expo-image-picker";
+import * as Clipboard from "expo-clipboard";
 import { supabase } from "./src/lib/supabase";
 
 type Post = {
@@ -263,8 +264,27 @@ function CommunityApp() {
   };
 
   const sharePost=async(post:Post)=>{
-    if(supabase&&currentUserId&&typeof post.id==="string")await supabase.from("post_shares").insert({post_id:post.id,user_id:currentUserId});
-    await Share.share({message:post.title+"\\n\\n"+post.body+"\\n\\n"+post.tags.map(tag=>"#"+tag).join(" ")});
+    if(!supabase||!currentUserId||typeof post.id!=="string"){
+      setFeedNotice("سجّل الدخول لإنشاء رابط مشاركة للمنشور.");
+      return;
+    }
+    const {data:linkRow,error}=await supabase.from("post_share_links")
+      .insert({post_id:post.id,owner_id:currentUserId})
+      .select("share_token").single();
+    if(error||!linkRow?.share_token){
+      setFeedNotice(error?.message?.includes("row-level security")
+        ?"لا يمكن إنشاء رابط لمنشور تابع لحساب خاص."
+        :"تعذر إنشاء رابط المشاركة. تأكد من تحديث قاعدة البيانات.");
+      return;
+    }
+    const shareUrl="https://hum258.github.io/tech-community-app/post.html?token="+linkRow.share_token;
+    await supabase.from("post_shares").insert({post_id:post.id,user_id:currentUserId});
+    try{
+      await Clipboard.setStringAsync(shareUrl);
+      setFeedNotice("تم نسخ رابط المنشور. يمكنك إرساله لأي شخص.");
+    }catch{
+      await Share.share({message:shareUrl});
+    }
   };
 
   const toggleSave = async (id:string | number) => {
@@ -477,7 +497,7 @@ function CommunityApp() {
                 <Pressable style={styles.xAction} onPress={()=>toggleLike(post.id)}><MaterialCommunityIcons name={isLiked?"heart":"heart-outline"} size={20} color={isLiked?"#D83F69":"#657786"}/><Text style={[styles.xActionText,isLiked&&styles.likedText]}>{post.hideLikeCount?"":post.likes||0}</Text></Pressable>
                 <Pressable style={styles.xAction} onPress={()=>{const opening=commentingPost!==post.id;setCommentingPost(opening?post.id:null);setCommentDraft("");if(opening&&typeof post.id==="string")loadPostComments(post.id);}}><MaterialCommunityIcons name="comment-outline" size={20} color={commentingPost===post.id?"#1D9BF0":"#657786"}/><Text style={styles.xActionText}>{post.comments||0}</Text></Pressable>
                 <Pressable style={styles.xAction} onPress={()=>toggleRepost(post.id)}><MaterialCommunityIcons name="repeat" size={20} color={reposted.includes(String(post.id))?"#168A62":"#657786"}/><Text style={styles.xActionText}>{post.reposts||0}</Text></Pressable>
-                <Pressable style={styles.xAction} onPress={() => Share.share({ message: post.title + "\n\n" + post.body + "\n\n" + post.tags.map(tag => "#" + tag).join(" ") })}><MaterialCommunityIcons name="share-variant-outline" size={20} color="#657786"/><Text style={styles.xActionText}>{post.shares||0}</Text></Pressable>
+                <Pressable style={styles.xAction} onPress={()=>sharePost(post)}><MaterialCommunityIcons name="share-variant-outline" size={20} color="#657786"/><Text style={styles.xActionText}>{post.shares||0}</Text></Pressable>
                 <Pressable style={styles.xAction} onPress={()=>toggleSave(post.id)}><MaterialCommunityIcons name={isSaved?"bookmark":"bookmark-outline"} size={20} color={isSaved?"#1D9BF0":"#657786"}/><Text style={styles.xActionText}>{post.savesCount||0}</Text></Pressable>
                 <Pressable style={styles.xAction} onPress={()=>Alert.alert(isArabic?"تحليلات المنشور":"Post analytics",[(isArabic?"المشاهدات: ":"Views: ")+(post.views||0),(isArabic?"الإعجابات: ":"Likes: ")+(post.likes||0),(isArabic?"التعليقات: ":"Comments: ")+(post.comments||0),(isArabic?"إعادات النشر: ":"Reposts: ")+(post.reposts||0),(isArabic?"مرات الحفظ: ":"Saves: ")+(post.savesCount||0)].join("\\n"))}><MaterialCommunityIcons name="chart-box-outline" size={20} color="#657786"/><Text style={styles.xActionText}>{post.views||0}</Text></Pressable>
               </View>
