@@ -94,6 +94,8 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
   const [fontScale,setFontScale]=useState(1);
   const [trendingRows,setTrendingRows]=useState<any[]>([]);
   const [checkingUpdates,setCheckingUpdates]=useState(false);
+  const [assistantDraft,setAssistantDraft]=useState("");
+  const [assistantMessages,setAssistantMessages]=useState<Array<{id:string;role:"user"|"assistant";text:string}>>([]);
 
 
   const loadProfile=useCallback(async()=>{
@@ -516,7 +518,7 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
     finally{setBusy(false);}
   };
 
-  const title=tab==="features"?(ar?"الأدوات والميزات":"Features and tools"):tab==="settings"?(ar?"الإعدادات والخصوصية":"Settings and privacy"):tab==="explore"?(ar?"استكشف المجتمع":"Explore"):tab==="groups"?(ar?"المجتمعات التقنية":"Communities"):tab==="messages"?(ar?"الرسائل":"Messages"):(ar?"ملفي الشخصي":"My profile");
+  const title=tab==="assistant"?(ar?"نوفا — مساعدك الذكي":"NOVA — AI Assistant"):tab==="features"?(ar?"الأدوات والميزات":"Features and tools"):tab==="settings"?(ar?"الإعدادات والخصوصية":"Settings and privacy"):tab==="explore"?(ar?"استكشف المجتمع":"Explore"):tab==="groups"?(ar?"المجتمعات التقنية":"Communities"):tab==="messages"?(ar?"الرسائل":"Messages"):(ar?"ملفي الشخصي":"My profile");
   const Field=({label,value,onChange,placeholder,multiline=false}:any)=><View style={{marginTop:12}}><Text style={[s.label,isDark&&{color:"#F2F6FA"}]}>{label}</Text><TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor="#9AA8B2" multiline={multiline} style={[s.input,multiline&&{height:90,textAlignVertical:"top",paddingTop:12},ar&&s.rtl]}/></View>;
   const Button=({label,onPress,disabled=false}:any)=><Pressable disabled={disabled||busy} onPress={onPress} style={[s.button,(disabled||busy)&&{opacity:.55}]}><Text style={s.buttonText}>{busy? (ar?"جارٍ التنفيذ...":"Please wait..."):label}</Text></Pressable>;
 
@@ -529,6 +531,44 @@ export default function SecondaryScreen({tab,isArabic,isDark,simpleMode,initialS
     <Text style={[s.title,ar&&s.rtl,isDark&&{color:"#F2F6FA"}]}>{title}</Text>
     {!!notice&&<View style={[s.notice,isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}><Text style={[s.noticeText,ar&&s.rtl]}>{notice}</Text><Pressable onPress={()=>setNotice("")}><MaterialCommunityIcons name="close" size={17} color={C.muted}/></Pressable></View>}
 
+    {tab==="assistant"&&<>
+      <View style={[s.card,{alignItems:"center",paddingVertical:24},isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}>
+        <View style={{width:76,height:76,borderRadius:25,backgroundColor:isDark?"#123B59":"#E8F5FD",alignItems:"center",justifyContent:"center",marginBottom:13}}>
+          <MaterialCommunityIcons name="robot-happy-outline" size={42} color={C.blue}/>
+        </View>
+        <Text style={[s.cardTitle,{fontSize:22},isDark&&{color:"#F2F6FA"}]}>NOVA AI</Text>
+        <Text style={[s.detail,{textAlign:"center",marginTop:5},isDark&&{color:"#C4D0DA"}]}>{ar?"مساعدك الذكي داخل المجتمع التقني":"Your AI assistant in the tech community"}</Text>
+        <View style={{marginTop:12,paddingHorizontal:12,paddingVertical:7,borderRadius:20,backgroundColor:isDark?"#3A3020":"#FFF4DB"}}>
+          <Text style={{fontSize:11,fontWeight:"800",color:isDark?"#FFD58A":"#9A6815"}}>{ar?"نسخة أولية — الذكاء الاصطناعي غير متصل بعد":"Early preview — AI is not connected yet"}</Text>
+        </View>
+      </View>
+      <View style={[s.card,{minHeight:280},isDark&&{backgroundColor:"#172632",borderColor:"#34495A"}]}>
+        {assistantMessages.length===0?<View style={{alignItems:"center",paddingVertical:22}}>
+          <MaterialCommunityIcons name="message-text-outline" size={34} color={C.blue}/>
+          <Text style={[s.cardTitle,{marginTop:12},isDark&&{color:"#F2F6FA"}]}>{ar?"أهلاً! أنا نوفا":"Hello! I'm NOVA"}</Text>
+          <Text style={[s.detail,{textAlign:"center"},isDark&&{color:"#C4D0DA"}]}>{ar?"قريباً سأساعدك في التعلم والبحث والأفكار التقنية. جرّب أحد الاقتراحات:":"Soon I'll help with learning, research and technical ideas. Try a suggestion:"}</Text>
+          <View style={{width:"100%",gap:8,marginTop:18}}>
+            {[
+              ar?"اشرح لي مفهوماً تقنياً":"Explain a technical concept",
+              ar?"ساعدني في فكرة منشور":"Help me with a post idea",
+              ar?"ما الجديد في الأمن السيبراني؟":"What's new in cybersecurity?"
+            ].map((v,i)=><Pressable key={i} onPress={()=>setAssistantDraft(v)} style={{padding:12,borderRadius:12,borderWidth:1,borderColor:isDark?"#34495A":C.line,backgroundColor:isDark?"#101820":"#F5F8FA"}}>
+              <Text style={{color:isDark?"#DCE6EF":C.ink,fontSize:12,fontWeight:"700",textAlign:ar?"right":"left"}}>{v}</Text>
+            </Pressable>)}
+          </View>
+        </View>:<View style={{gap:12}}>
+          {assistantMessages.map(m=><View key={m.id} style={{alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"90%",padding:12,borderRadius:14,backgroundColor:m.role==="user"?(isDark?"#123B59":"#E8F5FD"):(isDark?"#101820":"#F5F8FA")}}>
+            <Text style={{fontSize:12,lineHeight:20,color:isDark?"#EAF2F8":C.ink,textAlign:ar?"right":"left"}}>{m.text}</Text>
+          </View>)}
+        </View>}
+        <View style={{flexDirection:"row",alignItems:"center",gap:8,marginTop:18}}>
+          <TextInput value={assistantDraft} onChangeText={setAssistantDraft} placeholder={ar?"اكتب رسالتك لنوفا...":"Message NOVA..."} placeholderTextColor="#9AA8B2" multiline style={{flex:1,minHeight:46,maxHeight:100,borderWidth:1,borderColor:isDark?"#34495A":C.line,borderRadius:14,paddingHorizontal:12,paddingVertical:10,color:isDark?"#F2F6FA":C.ink,textAlign:ar?"right":"left",backgroundColor:isDark?"#101820":"#FFFFFF"}}/>
+          <Pressable onPress={()=>{const value=assistantDraft.trim();if(!value)return;setAssistantMessages(old=>[...old,{id:"u"+Date.now(),role:"user",text:value},{id:"a"+Date.now(),role:"assistant",text:ar?"نوفا ما زالت قيد التطوير. سيتم تفعيل الردود الذكية في تحديث قادم.":"NOVA is still in development. Smart replies will be enabled in a future update."}]);setAssistantDraft("");}} style={{width:46,height:46,borderRadius:14,backgroundColor:C.blue,alignItems:"center",justifyContent:"center"}}>
+            <MaterialCommunityIcons name="send" size={20} color="#FFFFFF"/>
+          </Pressable>
+        </View>
+      </View>
+    </>}
     {tab==="features"&&<FeatureHub isArabic={ar} userId={userId}/>}
 
     {tab==="settings"&&<>
