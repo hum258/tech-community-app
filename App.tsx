@@ -36,7 +36,7 @@ function CommunityApp() {
         const saved = JSON.parse(raw);
         setIsDark(!!saved.isDark);
         setSimpleMode(!!saved.simpleMode);
-        if (typeof saved.activeTab === "string" && ["home","explore","features","groups","messages","profile","settings","notifications"].includes(saved.activeTab)) setActiveTab(saved.activeTab);
+        if (typeof saved.activeTab === "string" && ["home","explore","assistant","groups","messages","profile","settings","notifications"].includes(saved.activeTab)) setActiveTab(saved.activeTab);
       }
     }).catch(() => {}).finally(() => { if (alive) setPreferencesLoaded(true); });
     return () => { alive = false; };
@@ -168,12 +168,12 @@ function CommunityApp() {
   const navItems = [
     { key:"home", icon:"home-variant-outline" as const, label:labels.home },
     { key:"explore", icon:"compass-outline" as const, label:labels.explore },
-    { key:"features", icon:"apps" as const, label:isArabic?"الميزات":"Features" },
+    { key:"assistant", icon:"robot-outline" as const, label:isArabic?"نوفا":"NOVA" },
     { key:"groups", icon:"account-group-outline" as const, label:labels.groups },
     { key:"messages", icon:"message-text-outline" as const, label:labels.messages },
     { key:"profile", icon:"account-circle-outline" as const, label:labels.profile },
     { key:"settings", icon:"cog-outline" as const, label:isArabic?"الإعدادات":"Settings" }
-  ].filter(item => !simpleMode || item.key !== "features");
+  ].filter(item => !simpleMode || item.key !== "assistant");
 
   const loadPostComments = async (postId:string) => {
     if(!supabase)return;
