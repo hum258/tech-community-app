@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1724"><meta name="robots" content="noindex,nofollow">
+<title>منشور مشترك | Tech Community</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b1724;color:#eaf3fb;font-family:Arial,Tahoma,sans-serif;min-height:100vh;padding:26px 14px}
+.wrap{max-width:760px;margin:auto}.brand{display:flex;align-items:center;gap:12px;margin:8px 0 24px;color:#dceaf6;font-weight:900;letter-spacing:1.5px}.mark{width:40px;height:40px;border-radius:13px;background:#1d9bf0;display:grid;place-items:center;font-size:21px}
+.card{background:#14283b;border:1px solid #29445c;border-radius:22px;padding:24px;box-shadow:0 20px 60px #0004}
+.author{display:flex;align-items:center;gap:12px;margin-bottom:18px}.avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;background:#24435c}.name{font-weight:800}.role{color:#8ea9bf;font-size:13px;margin-top:5px}
+.pill{display:inline-block;background:#183b55;color:#8dd2ff;padding:6px 11px;border-radius:20px;font-size:12px;margin-bottom:10px}
+h1{font-size:22px;line-height:1.6;margin:8px 0 10px} .body{white-space:pre-wrap;overflow-wrap:anywhere;color:#c7d7e5;line-height:1.9;font-size:16px}
+.post-image{width:100%;max-height:520px;object-fit:contain;background:#0b1724;border-radius:15px;margin-top:18px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}.tag{color:#83cfff;background:#1b3449;padding:6px 9px;border-radius:8px;font-size:12px}
+.date{color:#819bb1;font-size:12px;margin-top:18px}.footer{text-align:center;color:#7893aa;font-size:12px;margin:20px}
+.state{text-align:center;padding:40px 15px;color:#aec2d3}.error{color:#ffb8b8}
+</style></head>
+<body><div class="wrap"><div class="brand"><div class="mark">⌘</div><span>TECH COMMUNITY</span></div>
+<main class="card" id="content"><div class="state">جارٍ تحميل المنشور...</div></main>
+<div class="footer">CONNECT · LEARN · BUILD</div></div>
+<script>
+const SUPABASE_URL="https://uotrkukemlpgvfobgbfd.supabase.co";
+const SUPABASE_KEY="sb_publishable_cjwNhkZ-GgOSU2p30UvCfQ_8MzxUc2y";
+const root=document.getElementById("content");
+const esc=(v)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+(async()=>{
+ const token=new URLSearchParams(location.search).get("token");
+ if(!token||!/^[0-9a-f-]{36}$/i.test(token)){root.innerHTML='<div class="state error">رابط المنشور غير صالح أو غير مكتمل.</div>';return;}
+ try{
+  const res=await fetch(SUPABASE_URL+"/rest/v1/rpc/get_shared_post",{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY},body:JSON.stringify({p_token:token})});
+  if(!res.ok)throw new Error("request failed");
+  const p=await res.json();
+  if(!p){root.innerHTML='<div class="state">هذا المنشور غير متاح. ربما ألغى صاحبه رابط المشاركة.</div>';return;}
+  const a=p.author||{};
+  root.innerHTML='<div class="author">'+(a.avatar_url?'<img class="avatar" src="'+esc(a.avatar_url)+'" alt="">':'<div class="avatar"></div>')+'<div><div class="name">'+esc(a.display_name||"عضو في المجتمع")+(a.is_verified?' ✓':'')+'</div><div class="role">'+esc(a.specialty||(a.account_type==="company"?"حساب شركة":"عضو المجتمع"))+'</div></div></div>'+
+  '<span class="pill">'+esc(p.category||"عام")+'</span><h1>'+esc(p.title||"منشور")+'</h1><div class="body">'+esc(p.body||"")+'</div>'+
+  (p.image_url?'<img class="post-image" src="'+esc(p.image_url)+'" alt="صورة المنشور">':'')+
+  '<div class="tags">'+(Array.isArray(p.tags)?p.tags.map(t=>'<span class="tag">#'+esc(t)+'</span>').join(""):"")+'</div>'+
+  '<div class="date">'+(p.created_at?new Date(p.created_at).toLocaleString("ar"):"")+'</div>';
+ }catch(e){root.innerHTML='<div class="state error">تعذر تحميل المنشور حالياً. حاول مرة أخرى لاحقاً.</div>';}
+})();
+</script></body></html>
