@@ -279,12 +279,21 @@ function CommunityApp() {
     }
     const shareUrl="https://hum258.github.io/tech-community-app/post.html?token="+linkRow.share_token;
     await supabase.from("post_shares").insert({post_id:post.id,user_id:currentUserId});
-    try{
-      await Clipboard.setStringAsync(shareUrl);
-      setFeedNotice("تم نسخ رابط المنشور. يمكنك إرساله لأي شخص.");
-    }catch{
-      await Share.share({message:shareUrl});
-    }
+    Alert.alert("مشاركة المنشور","اختر كيف تريد مشاركة رابط المنشور:",[
+      {text:"نسخ الرابط",onPress:async()=>{
+        try{
+          await Clipboard.setStringAsync(shareUrl);
+          setFeedNotice("تم نسخ رابط المنشور. الصقه في أي محادثة لإرساله.");
+        }catch{
+          setFeedNotice("تعذر نسخ الرابط. جرّب خيار مشاركة الرابط.");
+        }
+      }},
+      {text:"مشاركة الرابط",onPress:async()=>{
+        try{await Share.share({message:shareUrl});}
+        catch{setFeedNotice("تعذر فتح خيارات المشاركة.");}
+      }},
+      {text:"إلغاء",style:"cancel"}
+    ]);
   };
 
   const toggleSave = async (id:string | number) => {
